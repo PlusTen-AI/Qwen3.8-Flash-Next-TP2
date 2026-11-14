@@ -64,7 +64,7 @@ LOG_HOST = os.environ.get("Q38_LOG_HOST", LOG)  # the same folder as the host se
 if a.rank == 0:
     commit = os.environ.get("Q38_COMMIT", "")
     rails = len([x for x in os.environ.get("NCCL_IB_HCA", "").split(",") if x])
-    qlog.banner([f"dyad {settings.version()}{' · ' + commit if commit else ''} · Qwen3.8-Flash-Next engine",
+    qlog.banner([f"plus {settings.version()}{' · ' + commit if commit else ''} · Qwen3.8-Flash-Next engine",
                  f"model    {a.model}",
                  f"image    {os.environ.get('Q38_IMAGE', '?')}",
                  f"cluster  TP2 · head {head} ↔ worker {peer}" + (f" · {rails} rail{'s' if rails > 1 else ''}" if rails else "")])

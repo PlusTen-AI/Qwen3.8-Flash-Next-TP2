@@ -32,7 +32,7 @@ import qlog  # noqa: E402
 import settings  # noqa: E402
 
 LABEL = "project=qwen38-engine"
-SERVE = "qwen38-engine-serve"
+SERVE = "qwen38-tp2-plus"  # model-tp<nodes>-engine
 PASS_ENV = ("Q38_RDMA_INIT", "Q38_DRAFT_LM", "Q38_RDMA_TIMEOUT_S", "CUDA_LAUNCH_BLOCKING", "NCCL_DEBUG",
             "Q38_TEST_KV_NOGROW")  # if set here
 SYNC_EXCLUDE = (".git", ".claude", ".venv", "__pycache__", ".DS_Store", "results/raw", "build")
@@ -455,7 +455,7 @@ class Ctl:
         self.run(1, SERVE, cmd)
         self.run(0, SERVE, cmd)
         c = self.commit()
-        qlog.info("start", f"dyad {settings.version()}{' · ' + c if c else ''} · rank 0 {self.host} · rank 1 "
+        qlog.info("start", f"plus {settings.version()}{' · ' + c if c else ''} · rank 0 {self.host} · rank 1 "
                            f"{self.worker} · image {self.tag} · loading (about 2 min; the first start on a machine "
                            "also compiles the engine)")
         t0 = time.time()

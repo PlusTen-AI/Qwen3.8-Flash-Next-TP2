@@ -12,7 +12,7 @@ import time
 _C = not os.environ.get("NO_COLOR")
 _CYAN, _GREEN, _RED, _YEL, _RST = ("\033[36m", "\033[32m", "\033[31m", "\033[33m", "\033[0m") if _C else ("",) * 5
 _MAG = "\033[35m" if _C else ""
-# Dyad's mark: two linked rings, the two machines as one (a = the head's ring, b = the worker's; each passes over the
+# The mark: two linked rings, the two machines as one (a = the head's ring, b = the worker's; each passes over the
 # other once)
 _LOGO = (("╭────╮   ", "aaaaaa   "),
          ("│  ╭─┼──╮", "a  bbabbb"),

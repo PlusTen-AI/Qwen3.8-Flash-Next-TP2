@@ -268,7 +268,7 @@ def build(chat, sched, served, ctx, depth, think_cfg=None, plain_specials=True, 
 
     @app.get("/version")
     async def version():
-        return {"version": settings.version(), "engine": "dyad"}
+        return {"version": settings.version(), "engine": "plus"}
 
     @app.post("/tokenize")
     async def tokenize(req: Request):
