@@ -262,8 +262,8 @@ for room, want_reuse in ((4000, True), (400, False)):
 # 5. a long text sent 4 at once while one slot holds it (a benchmark's "4 at once" after "1 at once", or agents that
 # share a long context): the first continues on that slot, the other three take its checkpoint while it is busy —
 # its caches mapped again, nothing read again (one row each). With another token right after the slot's checkpoint
-# (the MTP head's cache there would be wrong) they take the busy slot's longest checkpoint below it instead (the
-# last chunk boundary or the tail one), never that one.
+# (the MTP head's cache there would be wrong) neither the slot itself nor the others take that checkpoint: the
+# longest one below it instead (the last chunk boundary), the first on the slot, the other three shared.
 for same in (True, False):
     eng = FakeEngine(pool=4000)
     sc = S.Scheduler(eng, {EOS}, 4, 1 << 20, 1024, "4", checkpoints=16, kv=eng, output_reserve=64)
@@ -273,7 +273,7 @@ for same in (True, False):
     sc.submit(first)
     first.done.wait(5)
     n0 = len(eng.steps)
-    ask = doc if same else doc[:5999] + [12]
+    ask = doc if same else doc[:5998] + [12, doc[5999]]  # the token after the slot's own checkpoint (5998) differs
     rs = [req(list(ask), f"x{i}") for i in range(4)]
     for r in rs:
         sc.submit(r)
@@ -283,12 +283,12 @@ for same in (True, False):
     how = sorted(r.reuse for r in rs)
     cached = sorted(r.cached for r in rs)
     if same:
-        ok = how == ["own", "shared", "shared", "shared"] and cached == [5999] * 4 and rows == [1] * 4
+        ok = how == ["own", "shared", "shared", "shared"] and cached == [5998] * 4 and rows == [2] * 4
     else:
-        sh = [r.cached for r in rs if r.reuse == "shared"]
-        ok = len(sh) == 3 and len(set(sh)) == 1 and 6000 - S.CKPT_TAIL <= sh[0] < 5999 and max(rows) <= S.CKPT_TAIL
+        ok = (how == ["checkpoint", "shared", "shared", "shared"] and len(set(cached)) == 1
+              and 6000 - S.CKPT_TAIL <= cached[0] < 5998 and max(rows) <= S.CKPT_TAIL)
     ok &= all(r.done.is_set() for r in rs)
-    check(ok, f"{'same text' if same else 'another last token'} 4 at once: {how} · reused {cached} · rows read "
+    check(ok, f"{'same text' if same else 'another token after its checkpoint'} 4 at once: {how} · reused {cached} · rows read "
               f"{rows} · free {eng.kv_free()} of {eng.total}")
     sc.drain(time.time() + 5)
     th.join(5)
@@ -296,6 +296,25 @@ for same in (True, False):
         eng.reset(i)
     check(eng.kv_free() == eng.total - eng.CK * len(eng.mapped), f"after: free {eng.kv_free()} · {len(eng.mapped)} "
                                                                    f"checkpoints mapped")
+
+# 6. the next turn continues from the slot's history only when the prompt's next token is the one the MTP head's
+# cache at its last position was written with (the reply's last token): another one → an earlier checkpoint
+for nxt_same in (True, False):
+    eng = FakeEngine(pool=4000)
+    sc = S.Scheduler(eng, {EOS}, 4, 1 << 20, 1024, "4", checkpoints=16, kv=eng, output_reserve=64)
+    th = serve(sc)
+    first = req(text(1002, 3000, 11), "turn 1")
+    sc.submit(first)
+    first.done.wait(5)
+    h, tail = list(first.slot.hist), first.slot.tail
+    turn2 = req(h + [tail if nxt_same else tail + 77] + text(1000, 200, 12)[1:], "turn 2")
+    sc.submit(turn2)
+    turn2.done.wait(5)
+    ok = (turn2.reuse == "cur" and turn2.cached == len(h)) if nxt_same else (turn2.reuse != "cur" and turn2.cached < len(h))
+    check(ok and tail == EOS, f"next turn, {'the reply' if nxt_same else 'another'}'s last token next: {turn2.reuse} "
+                              f"{turn2.cached} of {len(h)} (tail {tail})")
+    sc.drain(time.time() + 5)
+    th.join(5)
 
 # 4. vision tower items in slices between engine calls: every block once and in order, replies keep flowing meanwhile,
 # a prompt being read takes turns with it

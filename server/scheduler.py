@@ -1,6 +1,7 @@
 """Scheduler (rank 0): the only thread that drives the engine. Requests wait for a slot; a slot keeps its sequence's
 state after the request ends so the next request can continue from it (prefix reuse):
-  - the slot's current history (tokens through the target) is a prefix of the new prompt → continue from there;
+  - the slot's current history (tokens through the target) is a prefix of the new prompt and the prompt's next token
+    is the reply's last one → continue from there;
   - else the longest of its checkpoints the new prompt shares → load it (positions above it are rewritten);
   - else reset. The new prompt always has ≥ 1 token to run (its last one), which gives the first token's logits.
   - A longer prefix in a checkpoint that a busy slot holds (another request with the same text, e.g. the same long
@@ -8,12 +9,15 @@ state after the request ends so the next request can continue from it (prefix re
     copied and the caches below it are the busy slot's memory mapped again, as a prefix cache's shared blocks are
     (vLLM, SGLang) — nothing read again, no second copy of the text's caches. It needs the token after the checkpoint
     to be the prompt's (the MTP head's cache before it was written with that token; each checkpoint remembers it).
-Checkpoints (copies of the recurrent state, engine ckpt_*): the slot's own buffer before the last prompt token of every
-prefill (the next turn); from a pool shared by all slots, while a prompt is read: the start of its last message (an
+Checkpoints (copies of the recurrent state, engine ckpt_*): the slot's own buffer before the last two prompt tokens of
+every prefill (the next turn: a reply sent back without its thinking renders as <think>\n\n</think>, which leaves the
+generation prompt's <think>\n at its last token — one before it the next turn still has the token after; a prompt that
+runs only its last token keeps it before that one); from a pool shared by all slots, while a prompt is read: the start of its last message (an
 edited or replaced last message), CKPT_TAIL tokens before its end (the same text with another question at the end) and
-the last chunk boundary (a prompt that leaves the text further back). A pool checkpoint is used only when the prompt
-also has the token after it (the MTP head's cache at the position before was written with that token), so a reused
-prompt gives the same bits as a cold one. The pool is kept by recency, as a prefix cache is: with the shared KV pool a
+the last chunk boundary (a prompt that leaves the text further back). A checkpoint — or the slot's history — is used
+only when the prompt also has the token after it: the MTP head's cache at the position before was written with that
+token (each checkpoint remembers it, the slot its reply's last token, which was not run), so a reused prompt gives the
+same bits as a cold one (e.g. the same messages with the generation prompt's last token changed by thinking off). The pool is kept by recency, as a prefix cache is: with the shared KV pool a
 pool checkpoint's memory is pool chunks (mapped when it is taken, given back when it is dropped), so the free pool is
 its room; when room is needed — for a checkpoint or for a request's caches — the least recently used of the pool
 checkpoints (saved or loaded longest ago, whichever slot holds it, busy or idle) and the idle slots (an emptied slot
@@ -71,6 +75,8 @@ class Req:
         self.pf = 0  # next prompt position to run
         self.cached = 0
         self.last = None  # last emitted token (not yet through the target)
+        self.hlast = None  # the token the MTP head's cache at the last position run was written with (≠ last when a
+        # round's last token was replaced afterwards: </think> forced in, tool_choice forcing)
         self.n_out = 0
         self.rounds = self.accepted = 0
         self.t0, self.t_first = time.time(), None
@@ -113,6 +119,7 @@ class Slot:
         self.media = False  # the engine holds RoPE positions / media rows for this slot (set_mrope, set_media)
         self.ck = {}  # checkpoint buffer → token count (the slot's own buffer is buffer i); hist[:count] is its prefix
         self.nxt = {}  # checkpoint buffer → the token after its count (the MTP head's cache before it has it)
+        self.tail = None  # free slot: the token after its history (its reply's last one, or the prompt's next one)
 
 
 def _lcp(a, b):
@@ -199,11 +206,11 @@ class Scheduler:
         best, how, n = None, "reset", 0
         for s in free:
             m = _lcp(s.hist, r.key)
-            if m == len(s.hist) and m < L and m > n:
+            if m == len(s.hist) and m < L and m > n and s.tail is not None and r.key[m] == s.tail:
                 best, how, n = s, "cur", m
             for cid, c in s.ck.items():
-                # own buffer: its tokens a prefix (the next turn); pool: the token after it too (see the module doc)
-                if (c <= m and c < L if cid == s.i else c < m) and c > n:
+                # its tokens the prompt's, and the token after it too (see the module doc)
+                if c <= m and c < L and c > n and s.nxt.get(cid) == r.key[c]:
                     best, how, n = s, cid, c
         src = None  # a longer prefix in a busy slot's checkpoint (its history up to it the prompt's, the token after too)
         if self.kv is not None:
@@ -278,7 +285,7 @@ class Scheduler:
             if emb is not None:  # rank 0 only: the tensor stays here
                 getattr(self.eng, "eng", self.eng).media_src(s.i, emb)
             s.media = r.media is not None
-        s.req, r.slot, r.state, r.pf, r.cached = s, s, "prefill", n, n
+        s.req, s.tail, r.slot, r.state, r.pf, r.cached = s, None, s, "prefill", n, n
         r.t_place = time.time()
         r.ck_plan, r.ck_prog = self._ck_plan(r, s), None
         if r.penalised:  # the seen-token state: the prompt (forced tokens at its end count as generated ones)
@@ -532,6 +539,7 @@ class Scheduler:
             self.eng.mtp_step_held(P[c0 + 1:c1 + 1], list(range(c0, c1)), [s], [0, n], list(range(n)))
             r.held = None
         self.eng.spec_rest(s)
+        r.hlast = r.last
         self._media_done(r)
 
     def _prefill_chunk_p011(self, r):
@@ -550,8 +558,9 @@ class Scheduler:
             self._ck_progress(r, c1)
             return
         r.t_pf = time.time()
-        self.eng.step(P[c0:L], list(range(c0, L)), [s], [0, n], False, n - 1, self._ck_snaps(r, c0, L))
-        r.slot.ck[s], r.slot.nxt[s] = L - 1, r.key[L - 1]
+        sr = max(0, n - 2)  # the slot's own checkpoint before the last two tokens (one when only the last runs)
+        self.eng.step(P[c0:L], list(range(c0, L)), [s], [0, n], False, sr, self._ck_snaps(r, c0, L))
+        r.slot.ck[s], r.slot.nxt[s] = c0 + sr, r.key[c0 + sr]
         r.slot.hist += r.key[c0:L]
         r.pf = L
         t = self.eng.spec_first(s, L, self._first_depth(r), r.temp, r.seed, 0, r.top_k, r.top_p, *r.sampling())
@@ -562,6 +571,7 @@ class Scheduler:
         if n > 1:
             self.eng.mtp_step(P[c0 + 1:L], list(range(c0, L - 1)), [s], [0, n - 1], list(range(n - 1)), True, False)
         self.eng.spec_rest(s, n - 1)
+        r.hlast = r.last
         self._media_done(r)
 
     def _media_done(self, r):
@@ -634,7 +644,7 @@ class Scheduler:
         if n > 1:
             self.eng.mtp_step(T[:-1], list(range(p, p + n - 1)), [s], [0, n - 1], list(range(n - 1)), True, False)
         self.eng.spec_rest(s, n - 1)
-        r.last, r.state, r.inj = T[-1], "decode", None
+        r.last, r.hlast, r.state, r.inj = T[-1], T[-1], "decode", None
         self._emit(r, list(T))
 
     def _round(self, rs):
@@ -675,6 +685,7 @@ class Scheduler:
             r.verified += v
             r.pend = kr
             r.slot.hist += [r.last] + toks[:-1]  # kept verify rows: the old last token and the accepted drafts
+            r.hlast = toks[-1]  # the round's head pass ran with it (a replacement below does not rewrite that)
             toks = self._think(r, toks)
             r.last = toks[-1]
             toks = self._after_think(r, toks)
@@ -709,6 +720,11 @@ class Scheduler:
         if r in self.running:
             self.running.remove(r)
         r.slot.req, r.slot.used = None, time.time()
+        # the token the MTP head's cache at the history's last position was written with: the reply's last one (not
+        # run), or a prompt cut off mid-read: its next token (the head over each chunk has it); unknown otherwise
+        h = len(r.slot.hist)
+        r.slot.tail = (r.hlast if r.t_first is not None else
+                       r.key[h] if r.pf > r.cached and h == r.pf and h < len(r.key) else None)
         dt = time.time() - (r.t_first or time.time())
         tps = (r.n_out - 1) / dt if r.n_out > 1 and dt > 0 else 0.0
         st = self.stats
