@@ -1,7 +1,7 @@
 # Qwen3.8-Flash-Next-engine
 
 A dedicated C++/CUDA inference engine and OpenAI-compatible server for **Qwen3.8-Flash-Next** in NVIDIA's
-`Qwen3.8-Flash-Next-FP4-Local` checkpoint, on **two GB10 machines** (DGX Spark class) joined by a direct ConnectX-7
+[`Qwen3.8-Flash-Next-FP4-Local`](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-FP4-Local) checkpoint, on **two GB10 machines** (DGX Spark class) joined by a direct ConnectX-7
 cable. The model is split across both machines (tensor parallel, TP = 2); one machine (the head) serves HTTP.
 
 - **Lossless**: the checkpoint's own precision everywhere (NVFP4 / MXFP8 weights as stored, bf16 activations and KV
@@ -220,6 +220,6 @@ name both, a picture sent again to be reused from the cache and another picture 
 ## License and credits
 
 The model weights are under their own licenses: Qwen3.8-Flash-Next (Qwen) and the NVIDIA Open Model Agreement for the
-`Qwen3.8-Flash-Next-FP4-Local` checkpoint — read and accept them on Hugging Face. The serving behaviour (chat
+`Qwen3.8-Flash-Next-FP4-Local` checkpoint — read and accept them on [Hugging Face](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-FP4-Local). The serving behaviour (chat
 template handling, reasoning and tool-call parsing, API shape) follows vLLM; the configuration style follows existing
 two-node DGX Spark recipes.
