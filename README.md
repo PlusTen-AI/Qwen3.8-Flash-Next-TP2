@@ -44,7 +44,7 @@ cp serve.local.toml.example serve.local.toml
 $EDITOR serve.local.toml          # the worker's ssh name, its CX7 address, where the checkpoint is
 ./start.sh download               # only if you do not have the checkpoint yet (~96 GiB, then copied to the worker)
 ./start.sh check                  # everything start needs, one line each
-./start.sh                        # first start also builds the image on both machines (10–30 min), later ~2 min
+./start.sh                        # first start also builds the image on the head and copies it to the worker (10–30 min), later ~2 min
 curl http://localhost:8888/v1/chat/completions -H 'Content-Type: application/json' \
   -d '{"model": "Qwen/Qwen3.8-Flash-Next", "messages": [{"role": "user", "content": "Hello!"}]}'
 ./stop.sh
@@ -72,7 +72,7 @@ second rail; the worker does the same toward the head's addresses. The start lin
 
 | command | what it does |
 |---|---|
-| `./start.sh` | copy the repo to the worker, read the link, build the image and the tensor table if missing, start both ranks, wait until `/health` is 200 |
+| `./start.sh` | copy the repo to the worker, read the link, build the image on the head if missing and give the worker the same image, build the tensor table if missing, start both ranks, wait until `/health` is 200 |
 | `./start.sh restart` | stop, then start |
 | `./stop.sh` | stop both ranks gracefully (below); logs are kept in `<work>/results/serve/` |
 | `./start.sh status` | containers and `/health` |

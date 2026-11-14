@@ -243,23 +243,40 @@ class Ctl:
         self.build_image()
         self.table()
 
+    def image_id(self, rank):
+        """The image's ID on that node ('' if it has none)."""
+        r = self.sh(rank, f"docker image inspect -f '{{{{.Id}}}}' {self.tag} 2>/dev/null")
+        return r.stdout.strip() if r.returncode == 0 else ""
+
     def build_image(self, ranks=(0, 1)):
-        """Build the image where it is missing (both nodes at once)."""
-        need = [r for r in ranks if self.sh(r, f"docker image inspect {self.tag} >/dev/null 2>&1").returncode]
-        if need:
-            qlog.info("setup", f"building image {self.tag} on {', '.join(self.node(r) for r in need)} "
-                               "(first start: pulls nvcr.io/nvidia/pytorch, ~25 GB, can take 10–30 min)")
-            procs = {}
-            for r in need:
-                log = f"{self.work[r]}/results/setup/image-{time.strftime('%Y%m%d-%H%M%S')}.log"
-                cmd = (f"mkdir -p {q(os.path.dirname(log))} && cd {q(self.repo[r])}/docker && docker build --label {LABEL} "
-                       f"-t {self.tag} -f dev.Dockerfile . > {q(log)} 2>&1")
-                a = ["bash", "-c", cmd] if r == 0 else ["ssh", "-o", "BatchMode=yes", self.worker, cmd]
-                procs[r] = (subprocess.Popen(a, stdin=subprocess.DEVNULL), log)
-            for r, (p, log) in procs.items():
-                if p.wait():
-                    qlog.fail("setup", f"{self.node(r)}: image build failed · {log}")
-            qlog.ok("setup", f"image {self.tag} built")
+        """The image: built once on the head where it is missing; the worker then gets the head's image (docker save |
+        load over its ssh address) when it has none or another build of the same tag — both ranks run the very same
+        image."""
+        if not self.image_id(0):
+            qlog.info("setup", f"building image {self.tag} on {self.host} (first start: pulls nvcr.io/nvidia/pytorch, "
+                               "~25 GB, can take 10–30 min)")
+            log = f"{self.work[0]}/results/setup/image-{time.strftime('%Y%m%d-%H%M%S')}.log"
+            r = self.sh(0, f"mkdir -p {q(os.path.dirname(log))} && cd {q(self.repo[0])}/docker && docker build "
+                           f"--label {LABEL} -t {self.tag} -f dev.Dockerfile . > {q(log)} 2>&1")
+            if r.returncode or not self.image_id(0):
+                qlog.fail("setup", f"{self.host}: image build failed · {log}")
+            qlog.ok("setup", f"image {self.tag} built on {self.host}")
+        if 1 not in ranks:
+            return
+        h, w = self.image_id(0), self.image_id(1)
+        if w == h:
+            return
+        qlog.info("setup", f"image {self.tag} → {self.worker} ({'replacing another build of the same tag' if w else 'not there'}"
+                           " · ~25 GB over the link, a few minutes)")
+        t0 = time.time()
+        r = subprocess.run(["bash", "-c", f"set -o pipefail; docker save {q(self.tag)} | ssh -o BatchMode=yes -c "
+                                          f"aes128-gcm@openssh.com {q(self.worker)} docker load"],
+                           capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        if r.returncode or self.image_id(1) != h:
+            qlog.fail("setup", f"copy of the image to {self.worker} failed: {(r.stderr or r.stdout).strip()[-200:]}")
+        if w:  # the worker's own build, now untagged; kept if a container still uses it
+            self.sh(1, f"docker rmi {w} >/dev/null 2>&1")
+        qlog.ok("setup", f"image {self.tag} on {self.worker} = the head's · {time.time() - t0:.0f} s")
 
     def table_rel(self):
         """The checkpoint's tensor table under <work>/results (one per checkpoint folder: switching between, e.g., the
@@ -332,8 +349,14 @@ class Ctl:
             ok = d.returncode == 0 and "nvidia" in d.stdout
             line(ok, f"docker {n}", f"Docker {d.stdout.split()[0]} · NVIDIA container toolkit" if ok else
                  (d.stdout + d.stderr).strip()[-160:] + " (needs Docker for this user and the NVIDIA container toolkit)")
-            img = self.sh(r, f"docker image inspect {self.tag} >/dev/null 2>&1").returncode == 0
-            line(True if img else None, f"image {n}", self.tag + ("" if img else " — built on the first start"))
+            iid = self.image_id(r)
+            if r == 0:
+                line(True if iid else None, f"image {n}", self.tag + ("" if iid else " — built here on the first start"))
+            else:
+                h = self.image_id(0)
+                line(True if iid and iid == h else None, f"image {n}", self.tag + (
+                    " · the head's" if iid and iid == h else " — another build; the head's replaces it on the next start"
+                    if iid else " — copied from the head on the first start"))
             if running[r]:
                 line(True, f"GPU {n}", "used by this server (running)")
                 continue
