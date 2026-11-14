@@ -5,7 +5,8 @@ A dedicated C++/CUDA inference engine and OpenAI-compatible server for **Qwen3.8
 cable. The model is split across both machines (tensor parallel, TP = 2); one machine (the head) serves HTTP.
 
 - **Lossless**: the checkpoint's own precision everywhere (NVFP4 / MXFP8 weights as stored, bf16 activations and KV
-  cache, fp32 recurrent state and logits). Deterministic: the same seed gives the same text, alone or in a batch.
+  cache, fp32 recurrent state and logits). Deterministic: the same seed gives the same text, alone or in a batch,
+  read cold or continued from the cache.
 - **Fast**: MTP speculative decoding (exact acceptance — the output distribution is unchanged), RDMA all-reduce over
   both CX7 rails, prefix reuse across turns and across prompts that share a text — also between requests at the same
   time: a text another running request holds is not read or stored again (its caches are mapped, as a prefix cache's
@@ -119,7 +120,7 @@ are errors. Both ranks compare their settings and sources when they connect and 
 | `server.memory_free_gib` | 15 | memory left free on each machine after the pool (less slowed prefill by ~5% here) |
 | `server.kv_pool_gib` | 0 | cap on the pool (0 = all the room) |
 | `server.output_reserve` | 32768 | output tokens a request is admitted with when `max_tokens` is larger or absent; a longer reply takes more as it goes and ends (`length`) only when the pool is full |
-| `server.checkpoints` | 128 | most prefix checkpoints shared by all slots (≈ 55 MiB each, in free pool memory): the start of a prompt's last message, 1,024 tokens before its end, its last chunk boundary; kept by recency like a prefix cache (when room is needed, the least recently used checkpoint or idle slot goes, busy slot or not); a busy slot's checkpoint also starts another request with the same text, the caches below it shared between the two |
+| `server.checkpoints` | 128 | most prefix checkpoints shared by all slots (≈ 55 MiB each, in free pool memory): the start of a prompt's last message, 1,024 tokens before its end, its last chunk boundary; kept by recency like a prefix cache (when room is needed, the least recently used checkpoint or idle slot goes, busy slot or not); a busy slot's checkpoint also starts another request with the same text, the caches below it shared between the two; a checkpoint is reused only when the prompt also has the token after it (a reused prompt gives the same bits as a cold read). Each slot also keeps its own checkpoint before a prompt's last two tokens (the next turn) |
 | `model.yarn_factor` | 4.0 | YaRN factor of the attention layers' RoPE (≤ 1 = off, the checkpoint's own 262,144 positions); `server.context` ≤ 262,144 × factor |
 | `model.yarn_ramp` | 262144 | length the YaRN correction range is computed from (262,144 as HF transformers; vLLM's M-RoPE uses the window — in our needle runs that missed 2 of 30 at 512K) |
 | `server.draft_depth` | 4 | MTP drafts per round |
