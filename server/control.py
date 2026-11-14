@@ -32,7 +32,8 @@ import qlog  # noqa: E402
 import settings  # noqa: E402
 
 LABEL = "project=qwen38-engine"
-SERVE = "qwen38-tp2-plus"  # model-tp<nodes>-engine
+SERVE = os.environ.get("Q38_CONTAINER") or "qwen38-tp2-plus"  # model-tp<nodes>-engine; tools/dev.sh runs the
+# development server as qwen38-tp2-plus-dev, so it never touches a server the model proxy started from the deployed copy
 PASS_ENV = ("Q38_RDMA_INIT", "Q38_DRAFT_LM", "Q38_RDMA_TIMEOUT_S", "CUDA_LAUNCH_BLOCKING", "NCCL_DEBUG",
             "Q38_TEST_KV_NOGROW")  # if set here
 SYNC_EXCLUDE = (".git", ".claude", ".venv", "__pycache__", ".DS_Store", "results/raw", "build")
