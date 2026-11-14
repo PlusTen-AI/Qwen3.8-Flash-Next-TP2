@@ -161,8 +161,8 @@ void Engine::reset(int s) {
   }
   if (pool_) {  // the slot's chunks back to the pool (zeroed again when mapped)
     CUDA_CHECK(cudaStreamSynchronize(s_));
-    for (auto& a : kv_arr_[s]) pool_->shrink(a.id, 0);
-    kv_cover_[s] = 0;
+    for (auto& a : kv_arr_[s]) pool_->shrink(a.id, 0);  // chunks another slot still maps stay with it
+    kv_cover_[s] = 0, kv_floor_[s] = 0;
   }
   for (auto& q : sl.q) {
     if (pool_) break;
@@ -237,8 +237,15 @@ int Engine::ckpt_load(int s, int id) {
   if (id < 0 || id >= int(ck_.size())) qlog::fail("ckpt", "buffer %d of %zu", id, ck_.size());
   auto& k = ck_[id];
   if (k.len < 0 || k.slot != s) return -1;
+  kv_cut(s, k.len);  // KvFull before anything changes
+  ck_restore(s, k.mem);
+  hist_[s].resize(k.len);
+  return k.len;
+}
+
+void Engine::ck_restore(int s, const void* mem) {
   auto& sl = *slots_[s];
-  const uint8_t* p = static_cast<const uint8_t*>(k.mem);
+  const uint8_t* p = static_cast<const uint8_t*>(mem);
   for (auto& g : sl.g) {
     CUDA_CHECK(cudaMemcpyAsync(g.S, p, kSnapS, cudaMemcpyDeviceToDevice, s_));
     p += kSnapS;
@@ -246,10 +253,8 @@ int Engine::ckpt_load(int s, int id) {
     p += kSnapConv;
   }
   CUDA_CHECK(cudaMemcpyAsync(sl.ple_conv, p, kSnapPle, cudaMemcpyDeviceToDevice, s_));
-  hist_[s].resize(k.len);
   sl.gdn_pn = 0;  // P020: pending GDN rows belonged to the overwritten state — dropped, never applied
   spec_slot_.clear();
-  return k.len;
 }
 
 void Engine::ckpt_drop(int id) {
@@ -262,6 +267,11 @@ void Engine::ckpt_drop(int id) {
 namespace {
 size_t kv_bytes(int kind, int tokens) {  // one cache array's bytes for positions < tokens
   return kind == 0 ? size_t(tokens) * 1024 : kind == 1 ? size_t(tokens) * 256 : size_t((tokens + 3) / 4) * 256;
+}
+// the first byte a write at position p touches: its K‖V row, its raw indexer key, its group's compressed key (written
+// when the group's last position runs, qsa.cu) — every write at p' ≥ p lies at or past it
+size_t kv_wstart(int kind, int p) {
+  return kind == 0 ? size_t(p) * 1024 : kind == 1 ? size_t(p) * 256 : size_t(p / 4) * 256;
 }
 double mem_available_gib() {
   FILE* f = std::fopen("/proc/meminfo", "r");
@@ -289,6 +299,106 @@ size_t Engine::kv_held(int s) const {
   if (!pool_) return 0;
   size_t n = 0;
   for (auto& a : kv_arr_[s]) n += pool_->mapped(a.id) / KvPool::kChunk;
+  return n;
+}
+
+size_t Engine::kv_sole(int s) const {
+  if (!pool_) return 0;
+  size_t n = 0;
+  for (auto& a : kv_arr_[s]) n += pool_->sole(a.id);
+  return n;
+}
+
+size_t Engine::kv_full(int tokens) const {
+  const size_t caches = kLayers / 4 + (c_.mtp ? 1 : 0);
+  size_t n = 0;
+  for (int kind = 0; kind < 3; kind++) n += kv_wstart(kind, std::min(c_.ctx, tokens)) / KvPool::kChunk;
+  return caches * n;
+}
+
+int Engine::kv_cover_of(int s) const {
+  int t = c_.ctx;
+  for (auto& a : kv_arr_[s]) {
+    const size_t b = pool_->mapped(a.id);
+    t = std::min<int64_t>(t, a.kind == 0 ? b / 1024 : a.kind == 1 ? b / 256 : b / 256 * 4);
+  }
+  return t;
+}
+
+void Engine::kv_cut(int s, int n) {
+  if (!pool_ || n >= kv_floor_[s]) return;  // nothing at or above n is shared
+  // per array: the chunk holding position n's first write and the ones after it — any shared? Then the slot keeps
+  // its own copy of that chunk when it also holds positions below n, and gives the later ones back (it rewrites them;
+  // mapped again zeroed as it grows)
+  std::vector<std::pair<size_t, bool>> plan(kv_arr_[s].size(), {0, false});  // (chunks to keep, copy the last)
+  size_t copies = 0;
+  bool any = false;
+  for (size_t j = 0; j < kv_arr_[s].size(); j++) {
+    const auto& a = kv_arr_[s][j];
+    const size_t w = kv_wstart(a.kind, n), i0 = w / KvPool::kChunk, have = pool_->mapped(a.id) / KvPool::kChunk;
+    bool sh = false;
+    for (size_t i = i0; i < have && !sh; i++) sh = pool_->shared(a.id, i);
+    if (!sh) {
+      plan[j] = {have, false};
+      continue;
+    }
+    any = true;
+    const bool part = w % KvPool::kChunk != 0;
+    plan[j] = {part ? i0 + 1 : i0, part && pool_->shared(a.id, i0)};
+    copies += plan[j].second;
+  }
+  if (any) {
+    if (copies > pool_->free_chunks()) {
+      char m[200];
+      std::snprintf(m, sizeof m, "KV pool full: slot %d going back to %d tokens needs %zu chunks, %zu of %zu free", s,
+                    n, copies, pool_->free_chunks(), pool_->total_chunks());
+      qlog::warn("kv pool", "%s", m);
+      throw KvFull(s, m);
+    }
+    CUDA_CHECK(cudaStreamSynchronize(s_));  // no queued kernel still uses the chunks unmapped below
+    for (size_t j = 0; j < kv_arr_[s].size(); j++) {
+      const int id = kv_arr_[s][j].id;
+      pool_->shrink(id, plan[j].first * KvPool::kChunk);
+      if (plan[j].second && !pool_->own(id, plan[j].first - 1, s_))
+        qlog::fail("kv pool", "slot %d: no chunk for a copy (counted before)", s);
+    }
+    kv_cover_[s] = kv_cover_of(s);
+  }
+  kv_floor_[s] = n;  // chunks at or above n's writes are the slot's own now
+}
+
+int Engine::ckpt_share(int s, int id) {
+  if (!pool_) qlog::fail("ckpt", "ckpt_share needs the shared KV pool");
+  if (id < 0 || id >= int(ck_.size())) qlog::fail("ckpt", "buffer %d of %zu", id, ck_.size());
+  const auto& k = ck_[id];
+  if (k.len < 0 || k.slot < 0 || k.slot == s) return -1;
+  const int d = k.slot, n = k.len;
+  if (!hist_[s].empty() || kv_held(s)) qlog::fail("ckpt", "ckpt_share: slot %d is not empty (reset it first)", s);
+  if (n > int(hist_[d].size()) || n > kv_cover_[d])
+    qlog::fail("ckpt", "ckpt_share: checkpoint %d (%d tokens) is past slot %d's history (%zu, %d mapped)", id, n, d,
+               hist_[d].size(), kv_cover_[d]);
+  // per array: the chunks wholly below position n's first write are mapped again; the one it falls in (if it holds
+  // positions below n) is copied — counted first: KvFull before anything changes
+  size_t copies = 0;
+  for (auto& a : kv_arr_[d]) copies += kv_bytes(a.kind, n) > kv_wstart(a.kind, n) / KvPool::kChunk * KvPool::kChunk;
+  if (copies > pool_->free_chunks()) {
+    char m[200];
+    std::snprintf(m, sizeof m, "KV pool full: slot %d taking %d tokens from slot %d needs %zu chunks, %zu of %zu free", s,
+                  n, d, copies, pool_->free_chunks(), pool_->total_chunks());
+    qlog::warn("kv pool", "%s", m);
+    throw KvFull(s, m);
+  }
+  for (size_t j = 0; j < kv_arr_[s].size(); j++) {
+    const auto& a = kv_arr_[d][j];
+    const size_t full = kv_wstart(a.kind, n) / KvPool::kChunk;
+    pool_->share(kv_arr_[s][j].id, a.id, full);
+    if (kv_bytes(a.kind, n) > full * KvPool::kChunk && !pool_->grow_copy(kv_arr_[s][j].id, a.id, s_))
+      qlog::fail("kv pool", "slot %d: no chunk for a copy (counted before)", s);
+  }
+  kv_cover_[s] = kv_cover_of(s);
+  kv_floor_[s] = n, kv_floor_[d] = std::max(kv_floor_[d], n);
+  ck_restore(s, k.mem);
+  hist_[s].assign(hist_[d].begin(), hist_[d].begin() + n);
   return n;
 }
 
@@ -334,6 +444,7 @@ size_t Engine::kv_pool_init(double reserve_gib, double rank0_gib, double max_gib
   }
   kv_arr_.assign(c_.slots, {});
   kv_cover_.assign(c_.slots, 0);
+  kv_floor_.assign(c_.slots, 0);
   auto make = [&](int s, QsaCache& qc) {
     const int a0 = pool_->add(kv_bytes(0, c_.ctx)), a1 = pool_->add(kv_bytes(1, c_.ctx)), a2 = pool_->add(kv_bytes(2, c_.ctx));
     qc.cap = c_.ctx;
@@ -517,7 +628,12 @@ const float* Engine::step(const std::vector<int>& ids, const std::vector<int>& p
                  row, id, M, kMaxSnaps);
   const int R = all_logits ? M : B;
   if (R > c_.logit_rows) qlog::fail("step", "logits rows %d > %d (prefill chunks use all_logits=false)", R, c_.logit_rows);
-  for (int b = 0; b < B; b++) kv_ensure(slot[b], pos[seq_start[b + 1] - 1] + 1);  // KvFull before any state changes
+  for (int b = 0; b < B; b++) {
+    if (pool_ && pos[seq_start[b]] < kv_floor_[slot[b]])  // below it the caches may be another slot's too (read-only)
+      qlog::fail("step", "slot %d writes position %d below its shared caches (%d)", slot[b], pos[seq_start[b]],
+                 kv_floor_[slot[b]]);
+    kv_ensure(slot[b], pos[seq_start[b + 1] - 1] + 1);  // KvFull before any state changes
+  }
   for (auto [row, id] : sn) ck_map(slot[0], id);
   // P020: a verify step applies its slots' pending GDN rows in its GDN kernels; any other step flushes them first
   const bool p20 = spec_ && mtp_ && patch::on(patch::gdn_fused_commit);

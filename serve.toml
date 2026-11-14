@@ -45,7 +45,9 @@ draft_depth = 4         # MTP drafts per round
 # differs after one of those points reads only the rest. With kv_pool their memory is free pool room (taken when one is
 # kept, given back when it is dropped; the least recently used of them and of the idle slots goes when room is needed),
 # and this is only the most there can be; without kv_pool it is a fixed count taken at start. Each slot also keeps its
-# own checkpoint before the last prompt token (the next turn), outside this count.
+# own checkpoint before the last prompt token (the next turn), outside this count. With kv_pool a checkpoint a busy
+# slot holds also starts another request with the same text on a free slot: the caches below it are shared, not
+# read or stored again.
 checkpoints = 128
 # The requests' caches come from one pool shared by all slots, taken at start: all the memory left on the node with
 # less of it, less memory_free_gib (kept free for the system), at most kv_pool_gib (0 = no cap). false: every slot gets

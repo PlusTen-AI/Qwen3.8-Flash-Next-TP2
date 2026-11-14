@@ -17,12 +17,14 @@ EOS = 2
 class FakeEngine:
     """records prefill steps (slot, first position, rows); a request decodes `marker - 1000` rounds (its prompt's first
     token is the marker), then EOS; checkpoints remember their token counts. pool=N: a shared KV pool of N chunks (a
-    slot maps tokens // 100 + 1 chunks as it grows, a pool checkpoint CK chunks while it holds one)"""
+    slot maps tokens // 100 + 1 chunks as it grows, a pool checkpoint CK chunks while it holds one; ckpt_share maps the
+    holder's chunks below the count again — n // 100, counted once — and copies one)"""
     CK = 28
 
     def __init__(self, pool=0, slots=4):
         self.steps, self.rounds, self.ck, self.pos = [], {}, {}, {}
         self.total, self.slots, self.held, self.mapped = pool, slots, {}, set()
+        self.share = {}  # slot → (holder, chunks it maps from the holder)
 
     # ---- the KV pool (rank 0's queries) ----
     def kv_need(self, n):
@@ -35,7 +37,24 @@ class FakeEngine:
         return self.held.get(s, 0)
 
     def kv_free(self):
-        return self.total - sum(self.held.values()) - self.CK * len(self.mapped)
+        return (self.total - sum(self.held.values()) + sum(k for _, k in self.share.values())
+                - self.CK * len(self.mapped))
+
+    def kv_full(self, n):
+        return n // 100
+
+    def kv_sole(self, s):
+        out = sum(k for d, k in self.share.values() if d == s)
+        return max(0, self.held.get(s, 0) - self.share.get(s, (0, 0))[1] - out)
+
+    def ckpt_share(self, s, cid):
+        n, d = self.ck[cid]
+        assert d != s and not self.held.get(s) and self.pos.get(d, 0) >= n, (s, cid, n, d)
+        assert self.kv_free() >= 1, "the server shared without room for the copy"
+        self.share[s] = (d, self.kv_full(n))
+        self.held[s] = self.kv_full(n) + 1
+        self.pos[s] = n
+        return n
 
     def ckpt_chunks(self):
         return self.CK
@@ -53,6 +72,9 @@ class FakeEngine:
 
     def reset(self, s):
         self.held[s] = 0
+        self.share.pop(s, None)
+        for t in [t for t, (d, _) in self.share.items() if d == s]:  # the other holder keeps those chunks alone
+            del self.share[t]
         for c in [c for c, v in self.ck.items() if v[1] == s]:
             self.mapped.discard(c)
             del self.ck[c]
@@ -73,6 +95,8 @@ class FakeEngine:
         self.pos[s] = pos[-1] + 1
         time.sleep(0.005)  # a chunk takes time: requests arrive while a long read is going
         snaps = a[2] if len(a) > 2 else []
+        if len(a) > 1 and a[1] >= 0:  # P011: the slot's own snapshot before that row
+            self.ck[s] = (pos[0] + a[1], s)
         for row, cid in snaps:
             self._map_ck(cid)
             self.ck[cid] = (pos[0] + row, s)
@@ -234,6 +258,44 @@ for room, want_reuse in ((4000, True), (400, False)):
               f"+ another question reused {q2.cached} · free {eng.kv_free()} (never negative: room asked first)")
     sc.drain(time.time() + 5)
     th.join(5)
+
+# 5. a long text sent 4 at once while one slot holds it (a benchmark's "4 at once" after "1 at once", or agents that
+# share a long context): the first continues on that slot, the other three take its checkpoint while it is busy —
+# its caches mapped again, nothing read again (one row each). With another token right after the slot's checkpoint
+# (the MTP head's cache there would be wrong) they take the busy slot's longest checkpoint below it instead (the
+# last chunk boundary or the tail one), never that one.
+for same in (True, False):
+    eng = FakeEngine(pool=4000)
+    sc = S.Scheduler(eng, {EOS}, 4, 1 << 20, 1024, "4", checkpoints=16, kv=eng, output_reserve=64)
+    th = serve(sc)
+    doc = text(1000, 6000, 10)
+    first = req(doc, "alone")
+    sc.submit(first)
+    first.done.wait(5)
+    n0 = len(eng.steps)
+    ask = doc if same else doc[:5999] + [12]
+    rs = [req(list(ask), f"x{i}") for i in range(4)]
+    for r in rs:
+        sc.submit(r)
+    for r in rs:
+        r.done.wait(5)
+    rows = [k for _, _, k in eng.steps[n0:]]
+    how = sorted(r.reuse for r in rs)
+    cached = sorted(r.cached for r in rs)
+    if same:
+        ok = how == ["own", "shared", "shared", "shared"] and cached == [5999] * 4 and rows == [1] * 4
+    else:
+        sh = [r.cached for r in rs if r.reuse == "shared"]
+        ok = len(sh) == 3 and len(set(sh)) == 1 and 6000 - S.CKPT_TAIL <= sh[0] < 5999 and max(rows) <= S.CKPT_TAIL
+    ok &= all(r.done.is_set() for r in rs)
+    check(ok, f"{'same text' if same else 'another last token'} 4 at once: {how} · reused {cached} · rows read "
+              f"{rows} · free {eng.kv_free()} of {eng.total}")
+    sc.drain(time.time() + 5)
+    th.join(5)
+    for i in range(4):  # emptied slots give every chunk back, shared ones once
+        eng.reset(i)
+    check(eng.kv_free() == eng.total - eng.CK * len(eng.mapped), f"after: free {eng.kv_free()} · {len(eng.mapped)} "
+                                                                   f"checkpoints mapped")
 
 # 4. vision tower items in slices between engine calls: every block once and in order, replies keep flowing meanwhile,
 # a prompt being read takes turns with it

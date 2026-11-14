@@ -159,6 +159,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   // prefix checkpoints (model.h): buffers 0 … slots−1 the slots' own, then the pool (init's `checkpoints`)
   m.def("ckpt_save", [](int s, int id) { E->ckpt_save(s, id); }, py::arg("slot"), py::arg("id"), nogil());
   m.def("ckpt_load", [](int s, int id) { return E->ckpt_load(s, id); }, py::arg("slot"), py::arg("id"), nogil());
+  m.def("ckpt_share", [](int s, int id) { return E->ckpt_share(s, id); }, py::arg("slot"), py::arg("id"), nogil());
   m.def("ckpt_drop", [](int id) { E->ckpt_drop(id); }, py::arg("id"), nogil());
   m.def("ckpt_buffers", [] { return E->ckpt_buffers(); });
   m.def("ckpt_chunks", [] { return E->ckpt_chunks(); });
@@ -169,6 +170,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("kv_total", [] { return E->kv_total(); });
   m.def("kv_held", [](int s) { return E->kv_held(s); });
   m.def("kv_need", [](int tokens) { return E->kv_need(tokens); });
+  m.def("kv_sole", [](int s) { return E->kv_sole(s); });
+  m.def("kv_full", [](int tokens) { return E->kv_full(tokens); });
   m.def("history", [](int s) { return E->history(s); });
   m.def("set_taps", [](bool on) { E->set_taps(on); });
   m.def("tap", &tap);

@@ -151,8 +151,20 @@ class Engine {
   // With the shared KV pool the pool's buffers are address ranges whose chunks are mapped when a checkpoint goes in
   // (ckpt_save, step snaps: KvFull before anything changes if the pool has too few) and given back by ckpt_drop and by
   // reset of the slot that holds it: free pool memory is the checkpoints' room; ckpt_chunks() = chunks one takes.
+  // A load that takes the slot back below positions whose caches it shares with another slot (ckpt_share) first gives
+  // it its own copy of the chunk it goes on writing in (KvFull before anything changes if the pool has none).
   void ckpt_save(int slot, int id);
   int ckpt_load(int slot, int id);
+  // Another slot's checkpoint (shared KV pool only; a prefix cache shared by all requests): slot `slot`, emptied by
+  // reset(), continues from checkpoint `id` that another slot holds (its own buffer or a pool buffer). The recurrent
+  // state is copied; the QSA / MTP caches below the checkpoint are the holder's chunks mapped again (the same memory,
+  // nothing copied; the chunk the checkpoint position falls in is copied); the token history is the holder's first
+  // tokens. The holder must still have those positions as they were (the caller's checkpoint bookkeeping, as for
+  // ckpt_load), and the MTP head's cache at the position before was written with the token the caller's prompt has
+  // there. Then both slots read the shared chunks and write only above them: the state is the one a cold prefill of
+  // those tokens leaves, bit for bit. Returns the token count, −1 if the buffer is empty or the slot's own. KvFull
+  // (before anything changes) if the pool has too few chunks for the copies.
+  int ckpt_share(int slot, int id);
   void ckpt_drop(int id);
   int ckpt_buffers() const { return int(ck_.size()); }
   size_t ckpt_chunks() const;
@@ -167,6 +179,8 @@ class Engine {
   size_t kv_total() const { return pool_ ? pool_->total_chunks() : 0; }
   size_t kv_held(int slot) const;
   size_t kv_need(int tokens) const;
+  size_t kv_sole(int slot) const;    // chunks of the slot no other slot maps (what reset() gives back)
+  size_t kv_full(int tokens) const;  // chunks wholly below a count (what ckpt_share at that count maps, not new memory)
   int restore(int slot) { return ckpt_load(slot, slot); }
   int history(int slot) const { return int(hist_[slot].size()); }
   // Debug taps (tests, only for steps with M ≤ logit_rows): device pointer of a named buffer after the last step.
@@ -273,8 +287,14 @@ class Engine {
   struct KvArr { int id, kind; };            // kind 0 K‖V 1,024 B/token · 1 raw indexer keys 256 · 2 compressed 256 per 4
   std::vector<std::vector<KvArr>> kv_arr_;   // per slot: the 13 caches' three arrays
   std::vector<int> kv_cover_;                // per slot: tokens mapped
+  // per slot: positions below may lie in chunks shared with another slot (ckpt_share) — a step writes only at or
+  // above it; kv_cut lowers it when the slot goes back
+  std::vector<int> kv_floor_;
   static constexpr int kKvSlack = 64;        // mapped past the last position a step writes
   void kv_ensure(int slot, int tokens);      // map chunks so that positions < tokens (+ slack) exist, else KvFull
+  void kv_cut(int slot, int tokens);         // the slot goes back to `tokens`: no chunk it rewrites stays shared
+  int kv_cover_of(int slot) const;           // tokens its mapped chunks cover
+  void ck_restore(int slot, const void* mem);  // the recurrent state from a checkpoint buffer
   static constexpr int kMaxSnaps = 8;  // checkpoints inside one step
   int* d_seqs_ = nullptr;              // [2 · (kMaxSnaps + 2)] one-sequence seq_start {0, n} per GDN / PLE piece
   void snap_part(int slot, int id, int gdn_layer);  // checkpoint pieces: one GDN layer's S and conv (−1: PLE window)

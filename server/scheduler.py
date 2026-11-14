@@ -3,6 +3,11 @@ state after the request ends so the next request can continue from it (prefix re
   - the slot's current history (tokens through the target) is a prefix of the new prompt → continue from there;
   - else the longest of its checkpoints the new prompt shares → load it (positions above it are rewritten);
   - else reset. The new prompt always has ≥ 1 token to run (its last one), which gives the first token's logits.
+  - A longer prefix in a checkpoint that a busy slot holds (another request with the same text, e.g. the same long
+    context sent several times at once) → an emptied free slot takes it (engine ckpt_share): the recurrent state is
+    copied and the caches below it are the busy slot's memory mapped again, as a prefix cache's shared blocks are
+    (vLLM, SGLang) — nothing read again, no second copy of the text's caches. It needs the token after the checkpoint
+    to be the prompt's (the MTP head's cache before it was written with that token; each checkpoint remembers it).
 Checkpoints (copies of the recurrent state, engine ckpt_*): the slot's own buffer before the last prompt token of every
 prefill (the next turn); from a pool shared by all slots, while a prompt is read: the start of its last message (an
 edited or replaced last message), CKPT_TAIL tokens before its end (the same text with another question at the end) and
@@ -107,6 +112,7 @@ class Slot:
         self.i, self.hist, self.req, self.used = i, [], None, 0.0  # hist: Req.key values of the tokens run here
         self.media = False  # the engine holds RoPE positions / media rows for this slot (set_mrope, set_media)
         self.ck = {}  # checkpoint buffer → token count (the slot's own buffer is buffer i); hist[:count] is its prefix
+        self.nxt = {}  # checkpoint buffer → the token after its count (the MTP head's cache before it has it)
 
 
 def _lcp(a, b):
@@ -199,6 +205,21 @@ class Scheduler:
                 # own buffer: its tokens a prefix (the next turn); pool: the token after it too (see the module doc)
                 if (c <= m and c < L if cid == s.i else c < m) and c > n:
                     best, how, n = s, cid, c
+        src = None  # a longer prefix in a busy slot's checkpoint (its history up to it the prompt's, the token after too)
+        if self.kv is not None:
+            for d in self.slots:
+                if d.req is None or not d.ck:
+                    continue
+                m = None
+                for cid, c in d.ck.items():
+                    if c <= n or c >= L or d.nxt.get(cid) != r.key[c]:
+                        continue
+                    if m is None:
+                        m = _lcp(d.hist, r.key)
+                    if c <= m:
+                        src, n = (d, cid), c
+            if src is not None:
+                best, how = None, "share"
         if best is None:
             best = min(free, key=lambda s: s.used)
         s = best
@@ -212,23 +233,44 @@ class Scheduler:
                 return None
             while self.kv.kv_need(T) > self.kv.kv_total():
                 T -= 1024
-            held = 0 if how == "reset" else self.kv.kv_held(s.i)
-            extra = self.kv.kv_held(s.i) if how == "reset" else 0  # freed by the reset below
-            if not self._kv_room(max(0, self.kv.kv_need(T) - held), s, extra, [how] if isinstance(how, int) else ()):
+            if how in ("reset", "share"):  # the slot is emptied: what only it maps comes back
+                held, extra = (self.kv.kv_full(n) if how == "share" else 0), self.kv.kv_sole(s.i)
+                avoid = [src[1]] if how == "share" else []
+            else:
+                held, extra, avoid = self.kv.kv_held(s.i), 0, [how] if isinstance(how, int) else []
+                if how != "cur" and self.kv.kv_sole(s.i) < held:  # going back below shared caches: copies
+                    held -= self.kv.kv_need(0)
+            if not self._kv_room(max(0, self.kv.kv_need(T) - held), s, extra, avoid):
                 return False
             r.kv_tok = T
-        if how == "reset":
+        if how in ("reset", "share"):
             self.eng.reset(s.i)
             self._ck_keep(s, -1)
             s.hist = []
-        elif how != "cur":
-            got = self.eng.ckpt_load(s.i, how)
-            assert got == n, (got, n)
-            s.hist = s.hist[:n]
-            self._ck_keep(s, n)  # the ones above n are about to be overwritten
-            if how in self.ck_time:
-                self.ck_time[how] = time.time()
-        r.reuse = how if how in ("cur", "reset") else ("own" if how == s.i else "checkpoint")
+        if how == "share":
+            d, cid = src
+            got = self._kv_try(self.eng.ckpt_share, s.i, cid)
+            if got == n:
+                s.hist = d.hist[:n]
+                if cid in self.ck_time:
+                    self.ck_time[cid] = time.time()
+            else:  # the pool had no room for the copies (both ranks threw before any change): read it all
+                how, n = "reset", 0
+        elif how != "reset" and how != "cur":
+            got = self._kv_try(self.eng.ckpt_load, s.i, how)
+            if got is None:  # no room for the copies of shared caches it goes back below: read it all
+                self.eng.reset(s.i)
+                self._ck_keep(s, -1)
+                s.hist = []
+                how, n = "reset", 0
+            else:
+                assert got == n, (got, n)
+                s.hist = s.hist[:n]
+                self._ck_keep(s, n)  # the ones above n are about to be overwritten
+                if how in self.ck_time:
+                    self.ck_time[how] = time.time()
+        r.reuse = (how if how in ("cur", "reset") else "shared" if how == "share" else
+                   "own" if how == s.i else "checkpoint")
         if r.media is not None or s.media:  # the request's RoPE positions and media rows (or back to plain)
             pos3, delta, rows, emb = r.media or ([], 0, [], None)
             self.eng.set_mrope(s.i, pos3, delta)
@@ -245,6 +287,16 @@ class Scheduler:
                 self.eng.pen_add(s.i, r.prompt[r.n_prompt:])
         return True
 
+    @staticmethod
+    def _kv_try(fn, *a):
+        """fn(*a), or None when the engine's KvFull came (thrown before anything changed, on both ranks)"""
+        try:
+            return fn(*a)
+        except RuntimeError as e:
+            if not str(e).startswith("KV pool full"):
+                raise
+            return None
+
     # ---- KV pool ---------------------------------------------------------------------------------------------------
     def _kv_promised(self):
         """chunks the running requests may still map within their reservations"""
@@ -258,7 +310,8 @@ class Scheduler:
         while self.kv.kv_free() + extra - self._kv_promised() < need:
             busy = {x.ck_prog for x in self.running if x.state == "prefill"} | set(avoid)
             cands = [(self.ck_time[c], 0, c) for c in self.ck_owner if c not in busy]
-            cands += [(s.used, 1, s.i) for s in self.slots
+            # an idle slot whose caches all are another's too frees nothing by itself: after the others
+            cands += [(s.used if self.kv.kv_sole(s.i) else s.used + 1e12, 1, s.i) for s in self.slots
                       if s.req is None and s is not keep and self.kv.kv_held(s.i) > 0]
             if not cands:
                 return False
@@ -391,7 +444,7 @@ class Scheduler:
                 cid = self._ck_alloc(r.slot, [c for _, c in out])
                 if cid is not None:
                     out.append((d - c0, cid))
-                    r.slot.ck[cid] = d
+                    r.slot.ck[cid], r.slot.nxt[cid] = d, r.key[d]
         return out
 
     def _ck_progress(self, r, c1):
@@ -404,7 +457,7 @@ class Scheduler:
             if r.ck_prog is None:
                 return
         self.eng.ckpt_save(s.i, r.ck_prog)
-        s.ck[r.ck_prog] = c1
+        s.ck[r.ck_prog], s.nxt[r.ck_prog] = c1, r.key[c1]
         self.ck_time[r.ck_prog] = time.time()
 
     # ---- vision tower ----------------------------------------------------------------------------------------------
@@ -465,7 +518,7 @@ class Scheduler:
         # Always run, even when the request ended at its first token: the slot's head cache serves the next turn.
         r.t_pf = time.time()
         self.eng.snapshot(s)
-        r.slot.ck[s] = len(r.slot.hist)
+        r.slot.ck[s], r.slot.nxt[s] = len(r.slot.hist), r.key[L - 1]
         self.eng.step([P[L - 1]], [L - 1], [s], [0, 1], False)
         r.slot.hist.append(r.key[L - 1])
         t = self.eng.spec_first(s, L, self._first_depth(r), r.temp, r.seed, 0, r.top_k, r.top_p, *r.sampling())
@@ -498,7 +551,7 @@ class Scheduler:
             return
         r.t_pf = time.time()
         self.eng.step(P[c0:L], list(range(c0, L)), [s], [0, n], False, n - 1, self._ck_snaps(r, c0, L))
-        r.slot.ck[s] = L - 1
+        r.slot.ck[s], r.slot.nxt[s] = L - 1, r.key[L - 1]
         r.slot.hist += r.key[c0:L]
         r.pf = L
         t = self.eng.spec_first(s, L, self._first_depth(r), r.temp, r.seed, 0, r.top_k, r.top_p, *r.sampling())
