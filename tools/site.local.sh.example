@@ -1,0 +1,35 @@
+# site.local.sh — this site's addresses for the development tools (tools/dev.sh, sync.sh, preflight.sh, soak_nodes.sh,
+# check_public.sh, ../run.sh, dump/run_dump.sh). Copy to tools/site.local.sh (git ignores it) and fill it in.
+# The serving recipe itself (./start.sh) does not use this file: its settings are serve.local.toml.
+
+# How this machine reaches the nodes by ssh: through a jump host ("" = directly), then the head's and the worker's names
+JUMP=jump-host
+HEAD=head-node
+WORKER=worker-node
+# host names the preflight expects (`hostname` on each)
+JUMP_HOSTNAME=jump
+HEAD_HOSTNAME=head
+WORKER_HOSTNAME=worker
+# a systemd unit on the jump host that must be inactive before GPU work ("" = no such check)
+JUMP_GUARD_UNIT=""
+
+# the worker's CX7 addresses (one per rail, as the head reaches them) and the head's (as the worker reaches it)
+WORKER_CX=(10.0.0.2 10.0.1.2)
+HEAD_CX=10.0.0.1
+
+# the project's work folder on both nodes (build cache, tensor table, logs, golden dumps) and the weights' parent folder
+WORK=/home/user/work/qwen3.8-flash-next
+MODELS=/home/user/models/Qwen3.8-Flash-Next
+
+# the head's API as this machine reaches it (the Python checks take it as their first argument)
+URL=http://head-node:8888/v1
+
+# dump/run_dump.sh only: the reference vLLM image and each rank's interface, CX7 address and RDMA device
+DUMP_IMAGE=reference/vllm:tag
+DUMP_H_IF=eth-head; DUMP_H_IC=10.0.1.1; DUMP_H_HCA=mlx5_0
+DUMP_W_IF=eth-worker; DUMP_W_IC=10.0.1.2; DUMP_W_HCA=mlx5_1
+DUMP_IMAGE_ENV=()          # the reference image's own switches, NAME=VALUE each
+DUMP_LOAD_FORMAT=auto      # its weight loader (vllm serve --load-format)
+
+# check_public.sh: an extended regular expression of what must never appear in a file git tracks (addresses, names)
+PRIVATE='10\.0\.0\.|head-node|worker-node|/home/user/'

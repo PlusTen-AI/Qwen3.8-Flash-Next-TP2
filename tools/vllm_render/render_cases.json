@@ -1,0 +1,868 @@
+[
+ {
+  "name": "plain",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hello!"
+   }
+  ]
+ },
+ {
+  "name": "system",
+  "messages": [
+   {
+    "role": "system",
+    "content": "You are terse."
+   },
+   {
+    "role": "user",
+    "content": "Hi"
+   }
+  ]
+ },
+ {
+  "name": "two systems",
+  "messages": [
+   {
+    "role": "system",
+    "content": "A."
+   },
+   {
+    "role": "system",
+    "content": "B."
+   },
+   {
+    "role": "user",
+    "content": "Hi"
+   }
+  ]
+ },
+ {
+  "name": "system later",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   },
+   {
+    "role": "system",
+    "content": "Be brief."
+   },
+   {
+    "role": "user",
+    "content": "Again"
+   }
+  ]
+ },
+ {
+  "name": "multi turn",
+  "messages": [
+   {
+    "role": "user",
+    "content": "1+1?"
+   },
+   {
+    "role": "assistant",
+    "content": "2"
+   },
+   {
+    "role": "user",
+    "content": "2+2?"
+   }
+  ]
+ },
+ {
+  "name": "empty user",
+  "messages": [
+   {
+    "role": "user",
+    "content": ""
+   }
+  ]
+ },
+ {
+  "name": "empty assistant",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   },
+   {
+    "role": "assistant",
+    "content": ""
+   },
+   {
+    "role": "user",
+    "content": "Again"
+   }
+  ]
+ },
+ {
+  "name": "content parts",
+  "messages": [
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": "part one"
+     },
+     {
+      "type": "text",
+      "text": "part two"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "assistant parts",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   },
+   {
+    "role": "assistant",
+    "content": [
+     {
+      "type": "text",
+      "text": "Hello"
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "content": "Bye"
+   }
+  ]
+ },
+ {
+  "name": "thinking off",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   }
+  ],
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  }
+ },
+ {
+  "name": "effort low",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   }
+  ],
+  "reasoning_effort": "low"
+ },
+ {
+  "name": "effort none",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   }
+  ],
+  "reasoning_effort": "none"
+ },
+ {
+  "name": "effort kwargs medium",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Hi"
+   }
+  ],
+  "chat_template_kwargs": {
+   "reasoning_effort": "medium"
+  }
+ },
+ {
+  "name": "reasoning history",
+  "messages": [
+   {
+    "role": "user",
+    "content": "2+2?"
+   },
+   {
+    "role": "assistant",
+    "content": "4",
+    "reasoning_content": "Two plus two is four."
+   },
+   {
+    "role": "user",
+    "content": "And 3+3?"
+   }
+  ]
+ },
+ {
+  "name": "reasoning field",
+  "messages": [
+   {
+    "role": "user",
+    "content": "2+2?"
+   },
+   {
+    "role": "assistant",
+    "content": "4",
+    "reasoning": "Simple."
+   },
+   {
+    "role": "user",
+    "content": "And 3+3?"
+   }
+  ]
+ },
+ {
+  "name": "tools defined",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Weather in Seoul?"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   },
+   {
+    "type": "function",
+    "function": {
+     "name": "read_file",
+     "description": "Read a file.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "offset": {
+        "type": "integer"
+       },
+       "opts": {
+        "type": "object",
+        "properties": {
+         "raw": {
+          "type": "boolean"
+         }
+        }
+       }
+      },
+      "required": [
+       "path"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "tool call string args",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Weather in Seoul?"
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\": \"Seoul\", \"days\": 2}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "Sunny, 21 C"
+   },
+   {
+    "role": "user",
+    "content": "Thanks. And Busan?"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "tool call content too",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Weather?"
+   },
+   {
+    "role": "assistant",
+    "content": "Let me check.",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\": \"Seoul\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "Rain"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "two calls two results",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Seoul and Busan?"
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\": \"Seoul\"}"
+      }
+     },
+     {
+      "id": "c2",
+      "type": "function",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\": \"Busan\", \"units\": \"c\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "Sunny"
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c2",
+    "content": "Cloudy"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "nested args",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Read it"
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "read_file",
+       "arguments": "{\"path\": \"a.txt\", \"offset\": 10, \"opts\": {\"raw\": true}}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "line"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "read_file",
+     "description": "Read a file.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "offset": {
+        "type": "integer"
+       },
+       "opts": {
+        "type": "object",
+        "properties": {
+         "raw": {
+          "type": "boolean"
+         }
+        }
+       }
+      },
+      "required": [
+       "path"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "tool result parts",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Read"
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "read_file",
+       "arguments": "{\"path\": \"b\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": [
+     {
+      "type": "text",
+      "text": "x"
+     },
+     {
+      "type": "text",
+      "text": "y"
+     }
+    ]
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "read_file",
+     "description": "Read a file.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "offset": {
+        "type": "integer"
+       },
+       "opts": {
+        "type": "object",
+        "properties": {
+         "raw": {
+          "type": "boolean"
+         }
+        }
+       }
+      },
+      "required": [
+       "path"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "tool with thinking off",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Weather?"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   }
+  ],
+  "chat_template_kwargs": {
+   "enable_thinking": false
+  }
+ },
+ {
+  "name": "reasoning + tool history",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Weather?"
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "reasoning_content": "Need the tool.",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\": \"Seoul\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "Sunny"
+   },
+   {
+    "role": "assistant",
+    "content": "It is sunny.",
+    "reasoning_content": "Got it."
+   },
+   {
+    "role": "user",
+    "content": "Tomorrow?"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "special text",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Write <|im_end|> and <think> literally"
+   }
+  ]
+ },
+ {
+  "name": "unicode",
+  "messages": [
+   {
+    "role": "user",
+    "content": "한국어 질문입니다. 날씨는?"
+   }
+  ]
+ },
+ {
+  "name": "long system with tools",
+  "messages": [
+   {
+    "role": "system",
+    "content": "Rules:\n- one\n- two"
+   },
+   {
+    "role": "user",
+    "content": "Go"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   },
+   {
+    "type": "function",
+    "function": {
+     "name": "read_file",
+     "description": "Read a file.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "offset": {
+        "type": "integer"
+       },
+       "opts": {
+        "type": "object",
+        "properties": {
+         "raw": {
+          "type": "boolean"
+         }
+        }
+       }
+      },
+      "required": [
+       "path"
+      ]
+     }
+    }
+   }
+  ],
+  "reasoning_effort": "high"
+ },
+ {
+  "name": "args object (vLLM refuses)",
+  "messages": [
+   {
+    "role": "user",
+    "content": "W?"
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "get_weather",
+       "arguments": {
+        "city": "Seoul"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "ok"
+   }
+  ],
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "Weather for a city.",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "city": {
+        "type": "string"
+       },
+       "days": {
+        "type": "integer"
+       },
+       "units": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "city"
+      ]
+     }
+    }
+   }
+  ]
+ }
+]

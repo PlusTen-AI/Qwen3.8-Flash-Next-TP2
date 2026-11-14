@@ -1,0 +1,1091 @@
+[
+ {
+  "name": "one_call_strings",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "typed_params",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "configure",
+     "description": "configure",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "count": {
+        "type": "integer"
+       },
+       "ratio": {
+        "type": "number"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "options": {
+        "type": "object",
+        "properties": {
+         "depth": {
+          "type": "integer"
+         },
+         "label": {
+          "type": "string"
+         }
+        }
+       },
+       "ids": {
+        "type": "array",
+        "items": {
+         "type": "integer"
+        }
+       },
+       "mode": {
+        "enum": [
+         "fast",
+         "slow"
+        ]
+       },
+       "limit": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "level": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "name": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "Configure it.\n</think>\n\n<tool_call>\n<function=configure>\n<parameter=count>\n5\n</parameter>\n<parameter=ratio>\n0.75\n</parameter>\n<parameter=enabled>\ntrue\n</parameter>\n<parameter=options>\n{\"depth\": 2, \"label\": \"x\"}\n</parameter>\n<parameter=ids>\n[1, 2, 3]\n</parameter>\n<parameter=mode>\nfast\n</parameter>\n<parameter=limit>\nnull\n</parameter>\n<parameter=level>\n3\n</parameter>\n<parameter=extra>\nnot in schema\n</parameter>\n<parameter=name>\nBob\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "typed_last_int",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "configure",
+     "description": "configure",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "count": {
+        "type": "integer"
+       },
+       "ratio": {
+        "type": "number"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "options": {
+        "type": "object",
+        "properties": {
+         "depth": {
+          "type": "integer"
+         },
+         "label": {
+          "type": "string"
+         }
+        }
+       },
+       "ids": {
+        "type": "array",
+        "items": {
+         "type": "integer"
+        }
+       },
+       "mode": {
+        "enum": [
+         "fast",
+         "slow"
+        ]
+       },
+       "limit": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "level": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "name": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "Configure it.\n</think>\n\n<tool_call>\n<function=configure>\n<parameter=name>\nBob\n</parameter>\n<parameter=count>\n42\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "multiline_code",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "write_file",
+     "description": "write_file",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "content": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "content"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "Write the file.\n</think>\n\n<tool_call>\n<function=write_file>\n<parameter=path>\nsrc\\a.html\n</parameter>\n<parameter=content>\n<div class=\"x\">\n\tif (a < b && c > d) {\n\t\treturn \"</div>\"; // 안녕 \\n\n\t}\n</div>\n\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "two_calls",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=location>\nBusan\n</parameter>\n<parameter=unit>\nf\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "two_calls_parallel_false",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=location>\nBusan\n</parameter>\n<parameter=unit>\nf\n</parameter>\n</function>\n</tool_call>",
+  "extra": {
+   "parallel_tool_calls": false
+  },
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "content_before_call",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\nLet me check the weather for you.\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "call_in_reasoning",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather. I will call get_weather.\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "thinking_off",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": false,
+  "text": "<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "thinking_off_content",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": false,
+  "text": "Sure, checking.\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "cut_mid_value_eos",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, K",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "cut_mid_value_length",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "end": "length",
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, K",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "cut_mid_int_length",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "configure",
+     "description": "configure",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "count": {
+        "type": "integer"
+       },
+       "ratio": {
+        "type": "number"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "options": {
+        "type": "object",
+        "properties": {
+         "depth": {
+          "type": "integer"
+         },
+         "label": {
+          "type": "string"
+         }
+        }
+       },
+       "ids": {
+        "type": "array",
+        "items": {
+         "type": "integer"
+        }
+       },
+       "mode": {
+        "enum": [
+         "fast",
+         "slow"
+        ]
+       },
+       "limit": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "level": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "name": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "end": "length",
+  "text": "Configure it.\n</think>\n\n<tool_call>\n<function=configure>\n<parameter=name>\nBob\n</parameter>\n<parameter=count>\n4",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "cut_after_function_eos",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "tool_choice_none",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "tool_choice": "none",
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "tool_choice_named",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "tool_choice": {
+   "type": "function",
+   "function": {
+    "name": "get_weather"
+   }
+  },
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "tool_choice_required",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "tool_choice": "required",
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "no_tools_in_request",
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "tool_call_without_function",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Seoul\"}}\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "empty_arguments",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_time",
+     "description": "get_time",
+     "parameters": {
+      "type": "object",
+      "properties": {}
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "Time.\n</think>\n\n<tool_call>\n<function=get_time>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "bare_function",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<function=get_weather>\n<parameter=location>\nSeoul\n</parameter>\n</function>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "value_whitespace",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "note",
+     "description": "note",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "p1": {
+        "type": "string"
+       },
+       "p2": {
+        "type": "string"
+       },
+       "p3": {
+        "type": "string"
+       },
+       "p4": {
+        "type": "integer"
+       },
+       "p5": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "Note.\n</think>\n\n<tool_call>\n<function=note>\n<parameter=p1>inline</parameter>\n<parameter=p2>\n  spaced  \n</parameter>\n<parameter=p3>\n\nblank lines\n\n</parameter>\n<parameter=p4>7</parameter>\n<parameter=p5>\n 8 \n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "coercion_quirks",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "configure",
+     "description": "configure",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "count": {
+        "type": "integer"
+       },
+       "ratio": {
+        "type": "number"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "options": {
+        "type": "object",
+        "properties": {
+         "depth": {
+          "type": "integer"
+         },
+         "label": {
+          "type": "string"
+         }
+        }
+       },
+       "ids": {
+        "type": "array",
+        "items": {
+         "type": "integer"
+        }
+       },
+       "mode": {
+        "enum": [
+         "fast",
+         "slow"
+        ]
+       },
+       "limit": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "level": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "name": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "Configure it.\n</think>\n\n<tool_call>\n<function=configure>\n<parameter=count>\n007\n</parameter>\n<parameter=ratio>\n1.0\n</parameter>\n<parameter=enabled>\nFalse\n</parameter>\n<parameter=ids>\n[1, 2\n</parameter>\n<parameter=limit>\nNone\n</parameter>\n<parameter=name>\n123\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "trailing_text_after_call",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=location>\nSeoul, KR\n</parameter>\n<parameter=unit>\nc\n</parameter>\n</function>\n</tool_call>\n\nDone.",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ },
+ {
+  "name": "unknown_function",
+  "tools": [
+   {
+    "type": "function",
+    "function": {
+     "name": "get_weather",
+     "description": "get_weather",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "location": {
+        "type": "string"
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "c",
+         "f"
+        ]
+       }
+      },
+      "required": [
+       "location"
+      ]
+     }
+    }
+   }
+  ],
+  "thinking": true,
+  "text": "The user wants the weather in Seoul. I will call get_weather.\n</think>\n\n<tool_call>\n<function=get_stock>\n<parameter=symbol>\nNVDA\n</parameter>\n</function>\n</tool_call>",
+  "chunk": [
+   1,
+   3,
+   5,
+   13
+  ]
+ }
+]

@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 3.28)
+project(qwen38_engine LANGUAGES CXX CUDA)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_ARCHITECTURES 121a)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -lineinfo -Xptxas=-warn-spills")
+
+# src/core = model-independent base · src/model = step assembly + patches · src/kernels/<family>/ = contract header,
+# base implementation and numbered patch variants (pNNN_<name>.cu)
+file(GLOB CORE CONFIGURE_DEPENDS src/core/*.cc src/model/*.cc)
+file(GLOB KERNELS CONFIGURE_DEPENDS src/kernels/*/*.cu)
+add_library(q38 SHARED ${CORE} ${KERNELS})
+target_include_directories(q38 PUBLIC src)
+find_package(CUDAToolkit REQUIRED)
+target_link_libraries(q38 PUBLIC CUDA::cudart CUDA::cuda_driver nccl ibverbs)

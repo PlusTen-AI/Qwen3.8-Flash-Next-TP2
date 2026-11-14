@@ -1,0 +1,27 @@
+// patches.def — numbered engine patches, one line each. The base implementation always stays; a patch adds a variant
+// (src/kernels/<family>/pNNN_<name>.cu or a branch in model.cc) that must pass the golden tests (lossless).
+// Default on/off here; at run time Q38_PATCHES="+name,-name" overrides. Measured effect → results/patches.tsv.
+//
+//        id  name        default  what it changes
+// (P000 dual_rail is a launch setting in tools/tp2.sh, recorded in results/patches.tsv)
+Q38_PATCH(1, rdma_ar,          true,  "every bf16 all-reduce over dual-rail RDMA WRITE with a CPU proxy instead of NCCL (no SMs)")
+Q38_PATCH(2, ar_overlap,       true,  "prefill > 8192 rows: split a chunk in two halves on two streams, all-reduce of one under compute of the other")
+Q38_PATCH(3, hc_fused_prefill, true,  "prefill: HC combine fused into the down pass (X read from DRAM once), pipelined up pass")
+Q38_PATCH(4, gemm_tune,        true,  "prefill: faster large-M MXFP8/bf16 GEMM tiles (same per-row arithmetic)")
+Q38_PATCH(5, gdn_fast_prefill, true,  "prefill: shorter per-token critical path in the GDN recurrence (same arithmetic)")
+Q38_PATCH(6, draft_lm_q,       true,  "MTP draft passes read a quantized copy of lm_head (NVFP4; Q38_DRAFT_LM=mxfp8); target, accept test unchanged")
+Q38_PATCH(8, ar_split_attn,    true,  "prefill 2048–8192 rows: attention in two lanes (all-reduces hidden), one MoE call, its all-reduce in halves")
+Q38_PATCH(9, qsa_fast_index,   true,  "prefill calls ≥ 512 rows: QSA indexer keeps only scores ≥ a per-row threshold from sampled keys (no fp32 score buffer), exact top-512 over those")
+Q38_PATCH(10, moe_down_tune,   true,  "prefill MoE (M > 64): routed down y as 16-byte evict-first stores (last 24 MB kept for the combine), pipelined combine, evict-first out (same bits)")
+Q38_PATCH(11, last_row_in_chunk, true, "server: the prompt's last token rides in its last prefill chunk; the step takes the prefix snapshot before it")
+Q38_PATCH(12, hc_pack12,      true,  "decode HC kernels (M < 384) read a lossless 12-bit copy of the down/up weights (row exponent window + exact exception lists; same bits)")
+Q38_PATCH(13, lin_pack12,     true,  "decode linear (M ≤ 64) reads a lossless 12-bit copy of bf16 weights (target lm_head; bf16 copy kept for M > 64): 25% fewer bytes, same bits")
+Q38_PATCH(14, moe_scale4,     true,  "decode MoE (M ≤ 64) reads the routed experts' e4m3 block scales from a lossless 4-bit copy (base + nibble per item row, exceptions in 8 slots; expanded scales kept for M > 64): −4.7% expert bytes, same bits")
+Q38_PATCH(15, hc_after_ar_pdl, true, "decode HC: its first kernel launches as a programmatic dependent of the preceding RDMA all-reduce, so the module streams weights while the all-reduce waits (same values)")
+Q38_PATCH(16, block_verify,   true, "spec_accept (T > 0, 1 ≤ k ≤ 15): block verification (Sun et al. 2024) instead of token-by-token acceptance, exact integers — same output distribution, more tokens per round; k = 1 identical")
+Q38_PATCH(17, router_pack12,  true,  "decode MoE router (M ≤ 64) reads a lossless 12-bit copy of its bf16 weights (row exponent window, 8 exception slots per warp span; bf16 kept for M > 64): −24% router bytes, same bits")
+Q38_PATCH(19, sparse_logits,  true,  "sampling / spec_accept from each vocab half's top-64 candidates (sample_cands → candidate all-gather → sample_rows_sparse / spec_accept_sparse) instead of all-gathering full fp32 logits rows — bitwise the same tokens; rows outside the sparse conditions fall back (kernels only; engine not wired)")
+Q38_PATCH(20, gdn_fused_commit, true,  "MTP verify: the GDN commit of a round (replay of the kept rows into S, conv shift) runs inside the next verify step's GDN kernel — S crosses DRAM twice per round (read, write) instead of three times (verify read, commit read + write); pending rows flushed before any other use of the state (same bits)")
+Q38_PATCH(21, qsa_decode_attn, true,  "decode QSA calls with rows × tiles ≥ 280 + 6·rows and some sequence holding ≥ 2 rows (MTP verify at long context): attention + LSE merge + gate in one kernel, a 4-CTA cluster per row (CTA = 17-tile group; DSMEM max / merge, partials on chip) instead of k_attn + k_merge (fp32 per-tile partials through memory) — same bits; smaller calls keep k_attn + k_merge")
+Q38_PATCH(22, route_fast,     true,  "decode MoE (M ≤ 64): router as 48 CTAs × 16 warps with one barrier stage (the last CTA adds the K-third partials itself) and a faster routing tail on its own SM (top-3 lists in the top-10 rounds); k_experts queues routed gate/up before shared down → plan_ready 5–26 µs sooner, the routed stream starts earlier — same logits, top-k, plan, out bits")
+Q38_PATCH(23, mtp_last_rows,  true,  "MTP head passes over several rows per sequence (first draft pass of a round, prefill head passes): every row writes the head's caches (K‖V, indexer keys); only each sequence's last row — the only one whose output is used — runs attention, MoE, mixer and lm_head (same drafts, same bits)")

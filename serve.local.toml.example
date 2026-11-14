@@ -1,0 +1,13 @@
+# serve.local.toml — your pair of machines. Copy this file to serve.local.toml (git ignores it) and fill it in.
+# Only what differs from serve.toml goes here; ./start.sh check tells you what is missing.
+
+[cluster]
+# How the head node reaches the worker by ssh (key login, no password): "user@host" or a ~/.ssh/config name.
+worker = "user@192.168.1.12"
+# The worker's address on the direct CX7 cable. The interface, this node's address, the RDMA device, the GID index
+# and the second rail are read from the route to this address at every start.
+worker_addr = ["10.0.0.2"]
+
+[paths]
+# The downloaded checkpoint folder, the same path on both nodes.
+weights = "/home/user/models/Qwen3.8-Flash-Next-FP4-Local"
