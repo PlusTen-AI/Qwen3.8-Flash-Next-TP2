@@ -28,6 +28,12 @@ Measured on one pair (128K-token prompts, thinking on, default sampling):
 | reading a 1M prompt | 243 s (4,300 tok/s) |
 | long-context recall (`checks/needle.py`, 30 records) | 30/30 up to 640K (the default window) |
 
+Benchmark cards from one pair (131K-token agent context, effort max = engine `xhigh`, seed 1):
+
+![Summary](docs/bench/summary.png)
+![1 to 4 at once](docs/bench/concurrency.png)
+![Decode by item](docs/bench/decode-by-item.png)
+
 ## Requirements
 
 - Two GB10 machines with a **direct CX7 cable**, IPv4 addresses on the CX7 interfaces (one subnet per cable),
