@@ -11,6 +11,13 @@ import time
 
 _C = not os.environ.get("NO_COLOR")
 _CYAN, _GREEN, _RED, _YEL, _RST = ("\033[36m", "\033[32m", "\033[31m", "\033[33m", "\033[0m") if _C else ("",) * 5
+_MAG = "\033[35m" if _C else ""
+# Dyad's mark: two linked rings, the two machines as one (a = the head's ring, b = the worker's; each passes over the
+# other once)
+_LOGO = (("╭────╮   ", "aaaaaa   "),
+         ("│  ╭─┼──╮", "a  bbabbb"),
+         ("╰──┼─╯  │", "aaabaa  b"),
+         ("   ╰────╯", "   bbbbbb"))
 _detail = None
 _warn_counts = {}
 _t0 = time.time()
@@ -18,6 +25,22 @@ _t0 = time.time()
 
 def _out(tag, msg, color=""):
     sys.stdout.write(f"{_CYAN}[{tag}]{_RST} {color}{msg}{_RST if color else ''}\n")
+    sys.stdout.flush()
+
+
+def banner(lines):
+    """The mark with up to four lines of text beside it (the server's first screen lines)."""
+    lines = list(lines)[:len(_LOGO)]
+    for i, (art, mask) in enumerate(_LOGO):
+        s, cur = "", None
+        for ch, m in zip(art, mask):
+            want = {"a": _CYAN, "b": _MAG}.get(m, "")
+            if want != cur:
+                s += (_RST if cur else "") + want
+                cur = want
+            s += ch
+        s += _RST if cur else ""
+        sys.stdout.write(f"{s}   {lines[i] if i < len(lines) else ''}".rstrip() + "\n")
     sys.stdout.flush()
 
 

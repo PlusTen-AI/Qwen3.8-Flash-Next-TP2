@@ -25,6 +25,15 @@ class SettingsError(Exception):
     pass
 
 
+def version(root=REPO):
+    """The engine's version: VERSION at the repo root."""
+    try:
+        with open(os.path.join(root, "VERSION")) as f:
+            return f.read().strip()
+    except OSError:
+        return "?"
+
+
 def _typed(default, raw, where):
     """Parse a string from the environment / command line by the default's type."""
     try:

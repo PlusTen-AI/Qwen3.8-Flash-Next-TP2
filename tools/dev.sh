@@ -10,11 +10,12 @@ HEAD_REPO=$WORK/src
 # on C|D <cmd>: run on the head (C) or the worker (D), through the jump host when there is one
 on() { local h; case $1 in C) h=$HEAD;; D) h=$WORKER;; *) h=$1;; esac
   if [ -n "$JUMP" ]; then ssh -o BatchMode=yes "$JUMP" "ssh -o BatchMode=yes $h $(printf %q "$2")"; else ssh -o BatchMode=yes "$h" "$2"; fi; }
-pass_env() { local v e=""; for v in Q38_PATCHES Q38_RDMA_INIT Q38_DRAFT_LM Q38_RDMA_TIMEOUT_S CUDA_LAUNCH_BLOCKING NCCL_DEBUG Q38_TEST_KV_NOGROW; do
+pass_env() { local v e=""; for v in Q38_COMMIT Q38_PATCHES Q38_RDMA_INIT Q38_DRAFT_LM Q38_RDMA_TIMEOUT_S CUDA_LAUNCH_BLOCKING NCCL_DEBUG Q38_TEST_KV_NOGROW; do
   [ -n "${!v:-}" ] && e="$e $v=$(printf %q "${!v}")"; done; echo "$e"; }
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   set -uo pipefail
   cd "$(dirname "$0")/.." && . tools/qlog.sh
+  Q38_COMMIT="$(git rev-parse --short HEAD 2>/dev/null)$(git diff --quiet HEAD 2>/dev/null || echo ' +modified')"
   cmd=${1:-}; shift
   case "$cmd" in
     start) tools/preflight.sh ${Q38_PRE:-} || exit 1; tools/sync.sh || exit 1 ;;

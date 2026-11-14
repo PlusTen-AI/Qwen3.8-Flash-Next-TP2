@@ -1,4 +1,4 @@
-# Qwen3.8-Flash-Next-engine
+# Dyad — Qwen3.8-Flash-Next engine
 
 A dedicated C++/CUDA inference engine and OpenAI-compatible server for **Qwen3.8-Flash-Next** in NVIDIA's
 [`Qwen3.8-Flash-Next-FP4-Local`](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-FP4-Local) checkpoint, on **two GB10 machines** (DGX Spark class) joined by a direct ConnectX-7

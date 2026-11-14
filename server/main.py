@@ -60,6 +60,27 @@ if not head or not peer:
     qlog.fail("serve", "Q38_HEAD_IP / Q38_PEER_IP not set — start the server with ./start.sh")
 LOG = "/work/results/serve"
 os.makedirs(LOG, exist_ok=True)
+LOG_HOST = os.environ.get("Q38_LOG_HOST", LOG)  # the same folder as the host sees it (for the screen)
+if a.rank == 0:
+    commit = os.environ.get("Q38_COMMIT", "")
+    rails = len([x for x in os.environ.get("NCCL_IB_HCA", "").split(",") if x])
+    qlog.banner([f"dyad {settings.version()}{' · ' + commit if commit else ''} · Qwen3.8-Flash-Next engine",
+                 f"model    {a.model}",
+                 f"image    {os.environ.get('Q38_IMAGE', '?')}",
+                 f"cluster  TP2 · head {head} ↔ worker {peer}" + (f" · {rails} rail{'s' if rails > 1 else ''}" if rails else "")])
+
+
+def load_engine(rank):
+    """The engine module: built here on the first start (or after its sources change), cached in /work/cache/ext."""
+    import ext
+    why = ext.stale("engine", ext.engine_sources())
+    if why and rank == 0:
+        qlog.info("build", f"engine · compiling ({why}, a few minutes) · log {LOG_HOST}/build0.log")
+    t0 = time.time()
+    m = ext.load("engine", ext.engine_sources(), log=f"{LOG}/build{rank}.log", ldflags=ext.ENGINE_LDFLAGS)
+    if why and rank == 0:
+        qlog.ok("build", f"engine · built · {time.time() - t0:.0f} s")
+    return m
 
 
 def digest():
@@ -118,8 +139,7 @@ def close_engine(eng, who):
 if a.rank == 1:
     sock = link.accept(peer, cl["link_port"])
     calls = link.reader(link.hello(sock, 1, digest()))
-    import ext  # noqa: E402
-    eng = ext.load("engine", ext.engine_sources(), log=f"{LOG}/build1.log", ldflags=ext.ENGINE_LDFLAGS)
+    eng = load_engine(1)
     eng.init(a.model, a.table, 1, head, sv["slots"], sv["context"], sv["chunk"], mtp=True, port=cl["nccl_port"],
              yarn_factor=float(md["yarn_factor"]), yarn_ramp=md["yarn_ramp"], checkpoints=sv["checkpoints"],
              kv_pool=sv["kv_pool"])
@@ -192,12 +212,10 @@ sock = link.connect(peer, cl["link_port"])
 link.hello(sock, 0, digest())
 link.watch(sock, closing, peer_gone)
 
-import ext  # noqa: E402
-
 from chat import Chat  # noqa: E402
 from scheduler import Scheduler  # noqa: E402
 
-eng = ext.load("engine", ext.engine_sources(), log=f"{LOG}/build0.log", ldflags=ext.ENGINE_LDFLAGS)
+eng = load_engine(0)
 eng.init(a.model, a.table, 0, head, sv["slots"], sv["context"], sv["chunk"], mtp=True, port=cl["nccl_port"],
          yarn_factor=float(md["yarn_factor"]), yarn_ramp=md["yarn_ramp"], checkpoints=sv["checkpoints"],
          kv_pool=sv["kv_pool"])

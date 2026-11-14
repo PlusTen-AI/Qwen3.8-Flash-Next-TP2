@@ -22,6 +22,19 @@ def engine_sources():
 ENGINE_LDFLAGS = ["-lnccl", "-libverbs", "-lcuda"]  # what the whole engine links against (as CMakeLists)
 
 
+def stale(family, sources=()):
+    """Why load() will compile: "first build" (nothing built here yet), "sources changed" (a source or header newer
+    than the built module), or None (the cached module is used)."""
+    import glob
+    so = os.path.join(CACHE, family, f"q38_{family}.so")
+    if not os.path.exists(so):
+        return "first build"
+    t = os.path.getmtime(so)
+    files = [os.path.join(ROOT, "tests", "bind", f"{family}.cpp")] + [os.path.join(ROOT, s) for s in sources] + \
+        [f for p in ("*.h", "*.cuh") for f in glob.glob(os.path.join(ROOT, "src", "**", p), recursive=True)]
+    return "sources changed" if any(os.path.getmtime(f) > t for f in files) else None
+
+
 def load(family, sources=(), log=None, ldflags=()):
     """family: name of tests/bind/<family>.cpp; sources: engine-relative paths (e.g. 'src/kernels/hc.cu')."""
     if family in _mods:

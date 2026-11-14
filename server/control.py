@@ -73,6 +73,21 @@ class Ctl:
     def node(self, rank):
         return self.host if rank == 0 else self.worker
 
+    def commit(self):
+        """This checkout's commit (+modified when tracked files differ); Q38_COMMIT from the shell wins (a copy
+        without .git, as in development); '' when unknown."""
+        if os.environ.get("Q38_COMMIT"):
+            return os.environ["Q38_COMMIT"]
+        try:
+            r = subprocess.run(["git", "-C", REPO, "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
+            if r.returncode:
+                return ""
+            d = subprocess.run(["git", "-C", REPO, "status", "--porcelain", "--untracked-files=no"],
+                               capture_output=True, text=True)
+            return r.stdout.strip() + (" +modified" if d.stdout.strip() else "")
+        except OSError:
+            return ""
+
     def require(self):
         c, p = self.S["cluster"], self.S["paths"]
         miss = [k for k, v in (("cluster.worker", c["worker"]), ("paths.weights", p["weights"])) if not v]
@@ -157,7 +172,8 @@ class Ctl:
         env.update(NCCL_IB_GID_INDEX=str(rails[0]["gid"]), NCCL_IB_ROCE_VERSION_NUM="2", NCCL_IB_ADDR_FAMILY="AF_INET",
                    NCCL_SOCKET_IFNAME=rails[0]["dev"], GLOO_SOCKET_IFNAME=rails[0]["dev"], NCCL_CUMEM_ENABLE="0",
                    NCCL_NVLS_ENABLE="0", NCCL_IGNORE_CPU_AFFINITY="1",
-                   Q38_HEAD_IP=self.rails[0][0]["ip"], Q38_PEER_IP=self.rails[1][0]["ip"])
+                   Q38_HEAD_IP=self.rails[0][0]["ip"], Q38_PEER_IP=self.rails[1][0]["ip"],
+                   Q38_IMAGE=self.tag, Q38_COMMIT=self.commit(), Q38_LOG_HOST=f"{work}/results/serve")
         pt = ",".join(x for x in (settings.patches_env(self.S), os.environ.get("Q38_PATCHES", "")) if x)
         if pt:
             env["Q38_PATCHES"] = pt
@@ -438,7 +454,10 @@ class Ctl:
               [x for o in self.overrides for x in ("--set", o)]
         self.run(1, SERVE, cmd)
         self.run(0, SERVE, cmd)
-        qlog.info("start", f"rank 0 {self.host} · rank 1 {self.worker} · image {self.tag} · loading (about 2 min)")
+        c = self.commit()
+        qlog.info("start", f"dyad {settings.version()}{' · ' + c if c else ''} · rank 0 {self.host} · rank 1 "
+                           f"{self.worker} · image {self.tag} · loading (about 2 min; the first start on a machine "
+                           "also compiles the engine)")
         t0 = time.time()
         while self.health() != 200:
             for r in (0, 1):
@@ -453,7 +472,7 @@ class Ctl:
                 self.down(quiet=True)
                 qlog.fail("start", f"not ready in {sv['start_timeout']} s (server.start_timeout) — both ranks are down")
             time.sleep(3)
-        print(self.screen(0, SERVE, pat=r"^(.\[36m)?\[(engine|comm|rdma|link|serve)\]"))
+        print(self.screen(0, SERVE, pat=r"^(.\[36m)?\[(build|engine|comm|rdma|link|serve)\]"))
         qlog.ok("start", f"ready · {time.time() - t0:.0f} s · http://{self.host}:{sv['port']}/v1")
 
     def down(self, quiet=False):

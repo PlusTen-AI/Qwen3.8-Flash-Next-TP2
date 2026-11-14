@@ -12,6 +12,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
+import settings
 from chat import Detok, Parser, TemplateError, normalize_messages, normalize_tools, quote_tools, thinking_mode
 from scheduler import Req
 
@@ -267,7 +268,7 @@ def build(chat, sched, served, ctx, depth, think_cfg=None, plain_specials=True, 
 
     @app.get("/version")
     async def version():
-        return {"version": "qwen38-engine"}
+        return {"version": settings.version(), "engine": "dyad"}
 
     @app.post("/tokenize")
     async def tokenize(req: Request):
