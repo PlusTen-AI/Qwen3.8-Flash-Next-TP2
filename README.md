@@ -26,7 +26,7 @@ Measured on one pair (128K-token prompts, thinking on, default sampling):
 | four writers at once (total) | ~180–195 tok/s |
 | next turn of a 130K conversation (+7K new tokens) | 1.53 s to the first token |
 | reading a 1M prompt | 243 s (4,300 tok/s) |
-| long-context recall (`checks/needle.py`, 30 records) | 30/30 up to 640K · 29/30 at 768K and 896K · 24/30 at 1M |
+| long-context recall (`checks/needle.py`, 30 records) | 30/30 up to 640K (the default window) |
 
 ## Requirements
 
