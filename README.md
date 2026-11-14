@@ -48,12 +48,12 @@ Benchmark cards from one pair (131K-token agent context, effort max = engine `xh
 ## Quick start (on the head machine)
 
 ```bash
-git clone <this repo> qwen38-engine && cd qwen38-engine
+git clone https://github.com/PlusTen-AI/Qwen3.8-Flash-Next-TP2.git && cd Qwen3.8-Flash-Next-TP2
 cp serve.local.toml.example serve.local.toml
-$EDITOR serve.local.toml          # the worker's ssh name, its CX7 address, where the checkpoint is
-./start.sh download               # only if you do not have the checkpoint yet (~96 GiB, then copied to the worker)
-./start.sh check                  # everything start needs, one line each
-./start.sh                        # first start also builds the image on the head and copies it to the worker (10–30 min), later ~2 min
+$EDITOR serve.local.toml     # the worker's ssh name, its CX7 address, the checkpoint's path
+./start.sh download          # only without the checkpoint (~95 GiB, copied to the worker too)
+./start.sh check             # everything start needs, one line each
+./start.sh                   # the first start builds the image (10–30 min), later ~2 min
 curl http://localhost:8888/v1/chat/completions -H 'Content-Type: application/json' \
   -d '{"model": "Qwen/Qwen3.8-Flash-Next", "messages": [{"role": "user", "content": "Hello!"}]}'
 ./stop.sh
