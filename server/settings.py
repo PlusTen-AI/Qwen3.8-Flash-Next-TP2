@@ -26,12 +26,16 @@ class SettingsError(Exception):
 
 
 def version(root=REPO):
-    """The engine's version: VERSION at the repo root."""
+    """The engine's version: the first `## x.y.z` heading of CHANGELOG.md at the repo root."""
     try:
-        with open(os.path.join(root, "VERSION")) as f:
-            return f.read().strip()
+        with open(os.path.join(root, "CHANGELOG.md")) as f:
+            for line in f:
+                m = re.match(r"##\s+(\d+\.\d+\.\d+)", line)
+                if m:
+                    return m.group(1)
     except OSError:
-        return "?"
+        pass
+    return "?"
 
 
 def _typed(default, raw, where):

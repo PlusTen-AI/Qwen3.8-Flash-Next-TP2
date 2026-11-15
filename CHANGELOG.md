@@ -1,6 +1,6 @@
 # Changelog
 
-One line per change; the version is in `VERSION` (shown on the server's banner and at `/version`).
+One line per change. The newest heading is the engine's version (shown on the server's banner and at `/version`).
 
 ## 0.1.1 — 2026-11-16
 - Faster start: weights load on several threads (long reads in 8 MiB pieces, a layer's experts in parallel) — ~100–150 s → ~40 s a rank, the same bytes on the GPU.
