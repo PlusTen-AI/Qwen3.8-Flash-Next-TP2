@@ -30,12 +30,17 @@ class Weights {
   size_t count() const { return t_.size(); }
 
  private:
+  // Safe from several threads (the shard files are opened once, in the constructor). A long range is read in 8 MiB
+  // pieces on load_threads() threads: one stream reads NVMe at ~1.5 GB/s, 16 at ~5 GB/s.
   void pread_all(const TensorInfo& ti, uint64_t off, uint64_t len, uint8_t* dst) const;
   std::string dir_;
   int rank_;
   std::unordered_map<std::string, TensorInfo> t_;
-  mutable std::unordered_map<std::string, int> fds_;
+  std::unordered_map<std::string, int> fds_;
 };
+
+// Threads for loading (reads, host-side layout): the CPU's, at most 16.
+int load_threads();
 
 // CSF decode: fixed u8 [G, 16+8C] + exceptions u32 [E] -> E4M3 bytes [16G, C]
 std::vector<uint8_t> csf_decode(const uint8_t* fixed, int64_t groups, int64_t width, const uint32_t* exc, int64_t n_exc);

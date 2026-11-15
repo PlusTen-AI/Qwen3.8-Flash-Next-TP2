@@ -3,9 +3,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 #include "core/log.h"
 
@@ -47,8 +50,16 @@ Weights::Weights(const std::string& model_dir, const std::string& table_tsv, int
     if (ti.tp == "-") qlog::fail("weights", "tp column is empty — rebuild the table with tools/tp_plan.py");
     t_.emplace(v[c_name], std::move(ti));
   }
+  for (auto& [n, ti] : t_) {
+    if (fds_.count(ti.file)) continue;
+    int fd = open((dir_ + "/" + ti.file).c_str(), O_RDONLY);
+    if (fd < 0) qlog::fail("weights", "cannot open: %s", ti.file.c_str());
+    fds_[ti.file] = fd;
+  }
   drop_cache();  // start from an empty page cache for the shard files (left by earlier readers)
 }
+
+int load_threads() { return std::max(1, std::min<int>(16, std::thread::hardware_concurrency())); }
 
 void Weights::drop_cache() const {
   std::unordered_map<std::string, int> seen;
@@ -70,24 +81,28 @@ const TensorInfo& Weights::info(const std::string& name) const {
 }
 
 void Weights::pread_all(const TensorInfo& ti, uint64_t off, uint64_t len, uint8_t* dst) const {
-  auto it = fds_.find(ti.file);
-  int fd;
-  if (it == fds_.end()) {
-    fd = open((dir_ + "/" + ti.file).c_str(), O_RDONLY);
-    if (fd < 0) qlog::fail("weights", "cannot open: %s", ti.file.c_str());
-    fds_[ti.file] = fd;
-  } else {
-    fd = it->second;
-  }
-  uint64_t done = 0;
-  while (done < len) {
-    ssize_t r = pread(fd, dst + done, len - done, ti.offset + off + done);
-    if (r <= 0) qlog::fail("weights", "read failed: %s @%llu", ti.file.c_str(), (unsigned long long)(ti.offset + off + done));
-    done += r;
-  }
-  // drop what we just read from the page cache (no root needed): on GB10 the GPU driver needs free pages, and ~50 GB of
-  // cached shard pages can stall cudaMalloc (a note in the reference deployment's recipe)
-  posix_fadvise(fd, ti.offset + off, len, POSIX_FADV_DONTNEED);
+  const int fd = fds_.at(ti.file);
+  const uint64_t base = ti.offset + off;
+  auto part = [&](uint64_t a, uint64_t b) {  // bytes [a, b) of the range
+    for (uint64_t done = a; done < b;) {
+      ssize_t r = pread(fd, dst + done, b - done, base + done);
+      if (r <= 0) qlog::fail("weights", "read failed: %s @%llu", ti.file.c_str(), (unsigned long long)(base + done));
+      done += r;
+    }
+    // drop what we just read from the page cache (no root needed): on GB10 the GPU driver needs free pages, and ~50 GB
+    // of cached shard pages can stall cudaMalloc (a note in the reference deployment's recipe)
+    posix_fadvise(fd, base + a, b - a, POSIX_FADV_DONTNEED);
+  };
+  constexpr uint64_t kPiece = uint64_t(8) << 20;
+  const int nt = int(std::min<uint64_t>(load_threads(), len / kPiece));
+  if (nt < 2) return part(0, len);
+  std::atomic<uint64_t> next{0};
+  std::vector<std::thread> th;
+  for (int i = 0; i < nt; i++)
+    th.emplace_back([&] {
+      for (uint64_t a; (a = next.fetch_add(kPiece)) < len;) part(a, std::min(len, a + kPiece));
+    });
+  for (auto& x : th) x.join();
 }
 
 std::vector<uint8_t> Weights::raw(const std::string& name) const {

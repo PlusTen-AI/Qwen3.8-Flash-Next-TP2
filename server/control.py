@@ -480,7 +480,7 @@ class Ctl:
         self.run(0, SERVE, cmd)
         c = self.commit()
         qlog.info("start", f"plus {settings.version()}{' · ' + c if c else ''} · rank 0 {self.host} · rank 1 "
-                           f"{self.worker} · image {self.tag} · loading (about 2 min; the first start on a machine "
+                           f"{self.worker} · image {self.tag} · loading (about 1 min; the first start on a machine "
                            "also compiles the engine)")
         t0 = time.time()
         while self.health() != 200:

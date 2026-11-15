@@ -53,7 +53,7 @@ cp serve.local.toml.example serve.local.toml
 $EDITOR serve.local.toml     # the worker's ssh name, its CX7 address, the checkpoint's path
 ./start.sh download          # only without the checkpoint (~95 GiB, copied to the worker too)
 ./start.sh check             # everything start needs, one line each
-./start.sh                   # the first start builds the image (10–30 min), later ~2 min
+./start.sh                   # the first start builds the image (10–30 min), later ~1 min
 curl http://localhost:8888/v1/chat/completions -H 'Content-Type: application/json' \
   -d '{"model": "Qwen/Qwen3.8-Flash-Next", "messages": [{"role": "user", "content": "Hello!"}]}'
 ./stop.sh

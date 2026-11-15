@@ -916,12 +916,13 @@ MoeW* moe_upload(const Weights& W, const std::string& p, bool mtp) {
   // routed experts
   CUDA_CHECK(cudaMalloc(&m->ex, kEB * kExperts));
   std::vector<float> gs(3 * kExperts);
-  std::vector<uint8_t> blk(kEB);
   // P014: 4-bit scale records built from the same expanded bytes (every row checked on the host), when the patch is on
   const bool p14 = patch::on(patch::moe_scale4);
   constexpr size_t SX = kS13 + kS2;
   std::vector<uint8_t> scx(p14 ? SX * kExperts : 0);  // the experts' expanded scales, as in the block
-  for (int e = 0; e < kExperts; e++) {
+  // expert e → its own block in m->ex, gs[3e..], scx[e]: on load_threads() threads (reads and layout ~1.8 s a layer on
+  // one); every byte of a block is written for each expert, so a thread's reused buffer carries nothing over
+  auto expert = [&](int e, std::vector<uint8_t>& blk) {
     const std::string pe = p + "experts." + std::to_string(e) + ".";
     auto wg = need(W, pe + "gate_proj.weight", {I, H / 2});
     auto wu = need(W, pe + "up_proj.weight", {I, H / 2});
@@ -968,6 +969,16 @@ MoeW* moe_upload(const Weights& W, const std::string& p, bool mtp) {
       std::memcpy(scx.data() + SX * e, s13, kS13);
       std::memcpy(scx.data() + SX * e + kS13, s2, kS2);
     }
+  };
+  {
+    const int nt = load_threads();
+    std::vector<std::thread> th;
+    for (int t = 0; t < nt; t++)
+      th.emplace_back([&, t] {
+        std::vector<uint8_t> blk(kEB);
+        for (int e = t; e < kExperts; e += nt) expert(e, blk);
+      });
+    for (auto& x : th) x.join();
   }
   m->gs = dupload<float>(gs.data(), gs.size() * 4);
   if (p14) {
