@@ -8,7 +8,7 @@ Stdlib only (Python >= 3.11 on the host). ./start.sh and ./stop.sh call it.
   check                                 everything start needs, one line each (nothing is changed)
   download                              the checkpoint from Hugging Face (paths.weights_repo @ weights_revision) into
                                         paths.weights on the head, then copied to the worker (HF_TOKEN used if set)
-  stop                                  both ranks down; their logs are kept in <work>/results/serve/
+  stop                                  both ranks down; their logs are kept in <work>/results/serve/ for 7 days
   status                                containers and /health
   logs [N]                              rank 0's last N screen lines
   pair NAME [--timeout S] [--models-parent] -- CMD...
@@ -38,6 +38,7 @@ PASS_ENV = ("Q38_RDMA_INIT", "Q38_DRAFT_LM", "Q38_RDMA_TIMEOUT_S", "CUDA_LAUNCH_
             "Q38_TEST_KV_NOGROW")  # if set here
 SYNC_EXCLUDE = (".git", ".claude", ".venv", "__pycache__", ".DS_Store", "results/raw", "build")
 SCREEN = r"^(.\[36m)?\[[^]]+\]"  # the `[tag] line` screen lines in a container log
+KEEP_DAYS = 7  # a run's saved logs (rank<R>-<time>.log, timing-<time>.log) are removed after this many days
 
 
 def q(s):
@@ -184,7 +185,8 @@ class Ctl:
         key = ["-e", "Q38_SERVER_API_KEY"] if rank == 0 and os.environ.get("Q38_SERVER_API_KEY") else []  # value from env
         a = ["docker", "run", "-d", "--init", "--name", name, "--label", LABEL, "--user", self.ids(rank),
              "--gpus", "all", "--ipc=host", "--network", "host", "--device", "/dev/infiniband", "--cap-add", "IPC_LOCK",
-             "--ulimit", "memlock=-1:-1", *mounts, "-w", "/work/src", *key]
+             "--ulimit", "memlock=-1:-1", "--log-driver", "json-file", "--log-opt", "max-size=50m",
+             "--log-opt", "max-file=2", *mounts, "-w", "/work/src", *key]  # a running container's log: ≤ 2 × 50 MB
         for k, v in env.items():
             a += ["-e", f"{k}={v}"]
         a += [self.tag, *cmd, "--rank", str(rank)]
@@ -203,10 +205,14 @@ class Ctl:
         return r.stdout.rstrip()
 
     def keep_logs(self, rank, name, folder):
-        """docker logs → <work>/results/<folder>/rank<R>-<time>.log on that node; returns the path."""
-        d = f"{self.work[rank]}/results/{folder}"
-        f = f"{d}/rank{rank}-{time.strftime('%Y%m%d-%H%M%S')}.log"
-        self.sh(rank, f"mkdir -p {q(d)} && docker logs {name} > {q(f)} 2>&1")
+        """docker logs → <work>/results/<folder>/rank<R>-<time>.log on that node, and the head's timing.log (one line
+        per request) next to it as timing-<time>.log; saved logs there older than KEEP_DAYS days are removed. → the path"""
+        d, t = f"{self.work[rank]}/results/{folder}", time.strftime('%Y%m%d-%H%M%S')
+        f = f"{d}/rank{rank}-{t}.log"
+        self.sh(rank, f"mkdir -p {q(d)} && docker logs {name} > {q(f)} 2>&1; "
+                      f"if [ -f {q(d + '/timing.log')} ]; then mv {q(d + '/timing.log')} {q(f'{d}/timing-{t}.log')}; fi; "
+                      f"find {q(d)} -maxdepth 1 -type f \\( -name 'rank[0-9]-*.log' -o -name 'timing-*.log' \\) "
+                      f"-mmin +{KEEP_DAYS * 1440} -delete")
         return f
 
     def busy(self):

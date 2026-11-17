@@ -83,7 +83,7 @@ second rail; the worker does the same toward the head's addresses. The start lin
 |---|---|
 | `./start.sh` | copy the repo to the worker, read the link, build the image on the head if missing and give the worker the same image, build the tensor table if missing, start both ranks, wait until `/health` is 200 |
 | `./start.sh restart` | stop, then start |
-| `./stop.sh` | stop both ranks gracefully (below); logs are kept in `<work>/results/serve/` |
+| `./stop.sh` | stop both ranks gracefully (below); logs are kept in `<work>/results/serve/` for 7 days |
 | `./start.sh status` | containers and `/health` |
 | `./start.sh logs [N]` | the last N screen lines of the head |
 | `./start.sh check` | settings, ssh, link (ping at full MTU on every rail), Docker and the NVIDIA toolkit, image, GPUs free, memory, ports, the checkpoint the same on both machines |
