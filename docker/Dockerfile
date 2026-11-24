@@ -1,7 +1,7 @@
-# qwen38-engine dev image — build and test the C++/CUDA engine on GB10 (sm_121a).
+# qwen38-plus image — builds and runs the C++/CUDA engine and its server on GB10 (sm_121a).
 # Base (local on C, nothing pulled): NGC PyTorch 26.07 = CUDA 13.3 · cmake 3.31 · ninja · gcc 13 · NCCL · ibverbs/mlx5 ·
 # nsys/ncu · torch/numpy/safetensors (reference checks against the golden dump) · CuTe DSL.
-# Tag = qwen38-engine/dev:<first 8 of this file's sha256>; a changed file is a new tag, old tags are never overwritten.
+# Tag = qwen38-plus:<first 8 of this file's sha256>; a changed file is a new tag, old tags are never overwritten.
 FROM nvcr.io/nvidia/pytorch:26.07-py3
 LABEL project=qwen38-engine
 ENV CUDAARCHS=121a \

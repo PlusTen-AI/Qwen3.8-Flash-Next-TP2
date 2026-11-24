@@ -1,5 +1,5 @@
 """Golden dump overview + the reference's run-to-run noise floor per module (short vs short2: same inputs up to the
-first divergent token). Usage (dev image): dump_inspect.py <dump dir> → screen summary, details to
+first divergent token). Usage (in the image): dump_inspect.py <dump dir> → screen summary, details to
 <dump dir>/inspect.txt, noise to noise.json"""
 import json
 import os

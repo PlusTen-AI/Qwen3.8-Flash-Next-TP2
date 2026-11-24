@@ -1,7 +1,7 @@
 """check_vision.py — vision front end (server/vision.py) and tower (server/vision_tower.py) against the golden dump.
 
   docker run --rm --network none … -v <dump>:/gold:ro -v <models>:/models:ro \
-      qwen38-engine/dev:<tag> python3 /w/src/server/check_vision.py [--device cuda] [--items all] [--details FILE]
+      qwen38-plus:<tag> python3 /w/src/server/check_vision.py [--device cuda] [--items all] [--details FILE]
 
 For every golden vision case (tokens.json "vision"):
   [pixels]  our uint8 patches == the golden visual#0.in0 rows of that item (the rank that ran it), grid ↔ token count

@@ -59,7 +59,7 @@ class Ctl:
         self.worker, self.repo = c["worker"], {0: REPO, 1: p["worker_repo"] or REPO}
         w = p["work"]
         self.work = {0: w, 1: (self.repo[1] + w[len(REPO):]) if w.startswith(REPO + os.sep) else w}
-        with open(os.path.join(REPO, "docker", "dev.Dockerfile"), "rb") as f:
+        with open(os.path.join(REPO, "docker", "Dockerfile"), "rb") as f:
             self.tag = f"{p['image']}:{hashlib.sha256(f.read()).hexdigest()[:8]}"
         self.host = socket.gethostname()
 
@@ -264,7 +264,7 @@ class Ctl:
                                "~25 GB, can take 10–30 min)")
             log = f"{self.work[0]}/results/setup/image-{time.strftime('%Y%m%d-%H%M%S')}.log"
             r = self.sh(0, f"mkdir -p {q(os.path.dirname(log))} && cd {q(self.repo[0])}/docker && docker build "
-                           f"--label {LABEL} -t {self.tag} -f dev.Dockerfile . > {q(log)} 2>&1")
+                           f"--label {LABEL} -t {self.tag} -f Dockerfile . > {q(log)} 2>&1")
             if r.returncode or not self.image_id(0):
                 qlog.fail("setup", f"{self.host}: image build failed · {log}")
             qlog.ok("setup", f"image {self.tag} built on {self.host}")

@@ -1,4 +1,4 @@
-"""plain_specials and the tool-call parser (no GPU; in the dev image, as check_chat.py): client-written marker text
+"""plain_specials and the tool-call parser (no GPU; in the image, as check_chat.py): client-written marker text
 encodes as the whole-text plain encoding with no special id inside, in user / system / tool-definition text; prompts
 without markers unchanged; nameless / JSON / cut tool-call blocks."""
 import json, os, sys

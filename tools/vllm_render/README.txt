@@ -8,13 +8,13 @@ The reference recipe and its image were removed on 2026-11-14; vLLM's side was s
 vllm_side.py / vllm_stream.py need the reference image (kept as the record of how the saved files were made).
 vllm_side.py runs inside the reference image (CPU, no network): request bodies (JSON list on stdin) → vLLM's
 server-path render (ChatCompletionRequest → parse_chat_messages → safe_apply_chat_template) → text and token ids.
-our_side.py runs in our dev image: the same bodies through server/chat.py (normalize, thinking_mode, render, encode).
+our_side.py runs in our image: the same bodies through server/chat.py (normalize, thinking_mode, render, encode).
 Example (on C; cases.json = a JSON list of chat request bodies):
   M=<models>
   cat cases.json | docker run -i --rm --network none --label project=qwen38-engine --user 1000:1000 -e HOME=/tmp \
     -v $M:/models:ro -v $PWD/vllm_side.py:/tmp/v.py:ro --entrypoint python3 <reference vLLM image> /tmp/v.py > vllm.json
   cat cases.json | docker run -i --rm --network none --label project=qwen38-engine --user 1000:1000 -e HOME=/tmp \
-    -v <work>:/work -v $M:/models:ro qwen38-engine/dev:<tag> python3 /work/src/tools/vllm_render/our_side.py > ours.json
+    -v <work>:/work -v $M:/models:ro qwen38-plus:<tag> python3 /work/src/tools/vllm_render/our_side.py > ours.json
 2026-11-13: 23/24 cases identical (the 24th: arguments sent as an object — vLLM refuses it, we accept).
 our_side.py renders without plain_specials (vLLM has none).
 

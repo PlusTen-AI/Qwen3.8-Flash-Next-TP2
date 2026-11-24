@@ -1,5 +1,5 @@
 """Chat-side checks (no GPU): server/chat.py against the golden dump and the Qwen3 parser rules.
-  docker run … qwen38-engine/dev:<tag> python3 /work/src/server/check_chat.py
+  docker run … qwen38-plus:<tag> python3 /work/src/server/check_chat.py
 1. Template + tokeniser: the dump client's prompts (tools/dump/client.py: transformers' apply_chat_template with the
    model's template, reasoning_effort "low") rendered by Chat — both chat_template.jinja and the served
    chat_template.local.jinja (what the reference deployment served — the model folder's, else the repo copy in

@@ -222,7 +222,7 @@ name both, a picture sent again to be reused from the cache and another picture 
 - `server` — the HTTP front, chat template and parser, scheduler, the command link between the ranks, settings, and
   `control.py` (what `start.sh` / `stop.sh` run on the head); `vision.py` (image / video decoding, the prompt's media
   tokens and positions), `vision_tower.py` (the vision tower in PyTorch), `media.py` (the requests' media).
-- `docker/dev.Dockerfile` — the image (NGC PyTorch base + the HTTP packages + Pillow / OpenCV for media), built by
+- `docker/Dockerfile` — the image `qwen38-plus` (NGC PyTorch base + the HTTP packages + Pillow / OpenCV for media), built by
   `./start.sh` on each machine.
 - `tools/tensor_table.py` — the checkpoint's tensor table (made at the first start).
 

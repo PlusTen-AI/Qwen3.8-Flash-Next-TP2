@@ -2,6 +2,9 @@
 
 One line per change. The newest heading is the engine's version (shown on the server's banner and at `/version`).
 
+## 0.1.3 — 2026-11-24
+- The image is named `qwen38-plus` (was `qwen38-engine/dev`) and built from `docker/Dockerfile` (was `docker/dev.Dockerfile`); what is in it is unchanged.
+
 ## 0.1.2 — 2026-11-17
 - Logs no longer pile up: a run's saved logs (and its per-request timing lines) are removed after 7 days, and a running server's log holds at most 2 × 50 MB.
 

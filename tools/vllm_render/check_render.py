@@ -1,8 +1,8 @@
 """Our prompt rendering against vLLM 0.32's (the reference deployment), offline: render_cases.json through server/chat.py
 (as the server does: normalize, thinking_mode, render, encode — without plain_specials, which vLLM does not have)
 compared with render_vllm.json (vLLM's own render path in the reference image, saved by vllm_side.py before that image
-was removed). Equal text and token ids, or both refused. Runs in our dev image:
-  docker run --rm --network none … -v <work>:/work -v <models>:/models:ro qwen38-engine/dev:<tag> \
+was removed). Equal text and token ids, or both refused. Runs in our image:
+  docker run --rm --network none … -v <work>:/work -v <models>:/models:ro qwen38-plus:<tag> \
       python3 /work/src/tools/vllm_render/check_render.py"""
 import json
 import os

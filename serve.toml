@@ -29,8 +29,8 @@ weights_revision = "b9ce18a6887e18c089fdea8509a33e63429a3300"
 work = ".work"
 # The repo on the worker; empty = the same path as on the head. ./start.sh copies the head's repo there.
 worker_repo = ""
-# Docker image name; the tag comes from docker/dev.Dockerfile (a changed file is a new tag).
-image = "qwen38-engine/dev"
+# Docker image name; the tag comes from docker/Dockerfile (a changed file is a new tag).
+image = "qwen38-plus"
 
 [server]
 served_name = "Qwen/Qwen3.8-Flash-Next"

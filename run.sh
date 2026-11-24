@@ -8,7 +8,7 @@ cd "$(dirname "$0")" && . tools/qlog.sh && . tools/dev.sh
 STEPS=("${@:-all}"); [ "${STEPS[0]}" = all ] && STEPS=(sync pre image table dump floor)
 ID=$(date +%Y%m%d-%H%M); W=$WORK; RUN=$W/results/runs/$ID
 M=$MODELS
-TAG=qwen38-engine/dev:$(shasum -a 256 docker/dev.Dockerfile | cut -c1-8)
+TAG=qwen38-plus:$(shasum -a 256 docker/Dockerfile | cut -c1-8)
 c() { on C "$*"; }     # run on the head (C)
 # dev <log name> <cmd...> — dev container on C (CPU unless GPU=1), project + weights (ro) mounted. Full output goes to
 # $RUN/<log name>.log on C; the screen gets only the `[tag]` lines. On failure: the last error line + the log path.
@@ -23,7 +23,7 @@ pre)   tools/preflight.sh || exit 1 ;;
 image)
   if [ -n "$(c "docker images -q $TAG")" ]; then ok image "$TAG present — build skipped"
   else
-    c "cd $W/src/docker && docker build --label project=qwen38-engine -t $TAG -f dev.Dockerfile . > $RUN/image.log 2>&1" \
+    c "cd $W/src/docker && docker build --label project=qwen38-engine -t $TAG -f Dockerfile . > $RUN/image.log 2>&1" \
       || bad image "build failed · C $RUN/image.log"
     ok image "$TAG built · $(c "docker images $TAG --format '{{.ID}} {{.Size}}'")"
   fi
